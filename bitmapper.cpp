@@ -10,7 +10,7 @@
 
 #include <iostream>
 #include "bitmapper.h"
-#include <bitset>
+#include <string.h>
 
 using namespace std;
 
