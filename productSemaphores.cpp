@@ -1,7 +1,7 @@
 /********************************************
  * productSemaphores - Semaphores and Message Passing
  * This is a special class to create & use
- * product semaphores with the monitor app.
+ * product semaphores with the app.
  * (c)2021 Brett Huffman
  * 
  * Brett Huffman

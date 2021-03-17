@@ -24,8 +24,7 @@ using namespace std;
 int main(int argc, char* argv[])
 {
     // This main area will only handle the processing
-    // of the incoming arguments. After that, all processing
-    // will happen within the llibmonitor library functions.
+    // of the incoming arguments.
 
     string strLog =  "child app by Brett Huffman for CMP SCI 4760";
     cout << endl << strLog << endl << endl;

@@ -34,7 +34,6 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     // Important items
     struct OssHeader* ossHeader;
     struct OssItem* ossItemQueue;
-    unsigned char usageArray[18];
 
     // Check Input and exit if a param is bad
     if(nMaxSeconds < 1)
@@ -81,10 +80,43 @@ int ossProcess(string strLogFile, int nMaxSeconds)
         ossItemQueue[i].itemValue = 0.0f;
     }
 
+    memset(usageArray, 0, sizeof(usageArray));
 
+    for(int i=0;i < 18; i++)
+    {
+        cout << std::bitset<8>(usageArray[i]) << " ";
+    }
+    cout << endl;
+    
+    setBitmapByte(usageArray, 10, true);
 
+    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
 
+    for(int i=0;i < 18; i++)
+    {
+        cout << std::bitset<8>(usageArray[i]) << " ";
+    }
+    cout << endl;
 
+    setBitmapByte(usageArray, 10, false);
+
+    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
+
+    for(int i=0;i < 18; i++)
+    {
+        cout << std::bitset<8>(usageArray[i]) << " ";
+    }
+    cout << endl;
+
+    toggleByte(usageArray, 10);
+
+    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
+
+    for(int i=0;i < 18; i++)
+    {
+        cout << std::bitset<8>(usageArray[i]) << " ";
+    }
+    cout << endl;
 
     // Breakdown shared memory
     // Dedetach shared memory segment from process's address space
