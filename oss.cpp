@@ -34,7 +34,7 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     // Important items
     struct OssHeader* ossHeader;
     struct OssItem* ossItemQueue;
-    bitmap b;
+    unsigned char usageArray[18];
 
     // Check Input and exit if a param is bad
     if(nMaxSeconds < 1)
