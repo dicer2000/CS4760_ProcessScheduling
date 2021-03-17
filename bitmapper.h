@@ -17,17 +17,18 @@ class bitmapper
         unsigned char* _usageArray;
         int _size;
         
-
     public:
 
     bitmapper(int nSize);
     ~bitmapper();
+    bitmapper(const bitmapper& oldObj);
+    bitmapper& operator=(const bitmapper& rhs);
 
     // public functions
-    void setBitmapByte(uint, bool);
-    bool getBitmapByte(int);
-    void toggleByte(int);
-
+    void setBitmapBits(int, bool);
+    bool getBitmapBits(int);
+    void toggleBits(int);
+    void debugPrintBits();
 
 };
 

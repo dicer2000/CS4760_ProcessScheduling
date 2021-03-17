@@ -124,5 +124,31 @@ std::string GetStringFromInt(const int nVal)
     return strFinalVal;
 }
 
+void setBitmapByte(unsigned char* bitmap, int addr, bool value)
+{
+    if(value)
+    {
+        // Set the bit at this point in the bitmap
+        bitmap[addr/8] |= (1 << (7 - (addr%8)));
+    }
+    else
+    {
+        // Clear the bit
+        bitmap[addr/8] &= ~(1 << (7 - (addr%8)));
+    }
+}
+
+bool getBitmapByte(unsigned char* bitmap, int addr)
+{
+    // returns true or false based on whether value
+    // is set to 1 or 0 in bitmap
+    return (bitmap[addr/8] & (1 << (7 - (addr%8))));
+}
+
+void toggleByte(unsigned char* bitmap, int addr)
+{
+    // Toggle the bit at this point in the bitmap
+    bitmap[addr/8] ^= (1 << (7 - (addr%8)));
+}
 
 #endif // SHAREDSTRUCTURES_H

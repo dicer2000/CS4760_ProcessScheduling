@@ -48,5 +48,5 @@ To run the program, use the oss command.  You can use any of the command line op
 
 - 3/15/2021 - Created project, Makefile, this readme file and got it all to compile; Setup constants, shared memory
 - 3/16/2021 - Added to git; Made sure initial model is working on Hoare;
-
+- 3/17/2021 - Created a Bitmap class for use;
 *©2021 Brett W. Huffman*

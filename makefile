@@ -4,7 +4,7 @@
 
 # App 1 - builds the oss program
 appname1 := oss
-srcfiles := $(shell find . -name "oss*.cpp") ./productSemaphores.cpp
+srcfiles := $(shell find . -name "oss*.cpp") ./productSemaphores.cpp ./bitmapper.cpp
 
 # For debugging
 #$(error   VAR is $(srcfiles))

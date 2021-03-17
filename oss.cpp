@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "sharedStructures.h"
 #include "productSemaphores.h"
+#include "bitmapper.h"
 #include "oss.h"
 
 using namespace std;
@@ -34,6 +35,18 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     // Important items
     struct OssHeader* ossHeader;
     struct OssItem* ossItemQueue;
+
+    // Bitmap object for keeping track of children
+    bitmapper bm(16);
+
+    bm.debugPrintBits();
+    bm.setBitmapBits(8, true);
+    bm.setBitmapBits(14, true);
+    bm.debugPrintBits();
+
+    bitmapper bm2(16);
+    bm2 = bm;
+    bm2.debugPrintBits();
 
     // Check Input and exit if a param is bad
     if(nMaxSeconds < 1)
@@ -80,6 +93,9 @@ int ossProcess(string strLogFile, int nMaxSeconds)
         ossItemQueue[i].itemValue = 0.0f;
     }
 
+
+
+/*
     memset(usageArray, 0, sizeof(usageArray));
 
     for(int i=0;i < 18; i++)
@@ -88,19 +104,9 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     }
     cout << endl;
     
-    setBitmapByte(usageArray, 10, true);
+    setBitmapBits(usageArray, 10, true);
 
-    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
-
-    for(int i=0;i < 18; i++)
-    {
-        cout << std::bitset<8>(usageArray[i]) << " ";
-    }
-    cout << endl;
-
-    setBitmapByte(usageArray, 10, false);
-
-    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
+    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
 
     for(int i=0;i < 18; i++)
     {
@@ -108,9 +114,9 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     }
     cout << endl;
 
-    toggleByte(usageArray, 10);
+    setBitmapBits(usageArray, 10, false);
 
-    cout << "Val: " << getBitmapByte(usageArray, 10) << endl;
+    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
 
     for(int i=0;i < 18; i++)
     {
@@ -118,6 +124,16 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     }
     cout << endl;
 
+    toggleBits(usageArray, 10);
+
+    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
+
+    for(int i=0;i < 18; i++)
+    {
+        cout << std::bitset<8>(usageArray[i]) << " ";
+    }
+    cout << endl;
+*/
     // Breakdown shared memory
     // Dedetach shared memory segment from process's address space
     cout << endl;

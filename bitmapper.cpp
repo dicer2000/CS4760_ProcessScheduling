@@ -9,26 +9,58 @@
  ********************************************/
 
 #include <iostream>
-#include bitmapper.h
+#include "bitmapper.h"
+#include <bitset>
 
-use namespace std;
+using namespace std;
 
 // Constructors / Destructors
 
-bitmapper::bitmapper(int nSize)
+bitmapper::bitmapper(int nNumberOfBits)
 {
+    // Determine the number of characters needed
+    int nSize = nNumberOfBits / 8;
+    if(nNumberOfBits%8) // If not exactly equal
+        nSize++;
     _size = nSize;
     _usageArray = new unsigned char[nSize];
+    memset(_usageArray, '\0', _size); // 0 out array
 }
 
- bitmapper::~bitmapper()
- {
-     delete _usageArray [];
- }
-
-
-void bitmapper::setBitmapByte(int addr, bool value)
+// Destructor
+bitmapper::~bitmapper()
 {
+    delete [] _usageArray;
+}
+
+// Copy Constructor
+bitmapper::bitmapper(const bitmapper& oldObj)
+{
+    _size = oldObj._size;
+    _usageArray = new unsigned char[_size];
+    // Copy everything over
+    memcpy(_usageArray, oldObj._usageArray, _size);
+}
+
+// Assignment Operator
+bitmapper& bitmapper::operator=(const bitmapper& rhs)
+{
+    
+    delete [] _usageArray;
+    _size = rhs._size;
+    _usageArray = new unsigned char[_size];
+    // Copy everything over
+    memcpy(_usageArray, rhs._usageArray, _size);
+
+    return *this;
+}
+
+void bitmapper::setBitmapBits(int addr, bool value)
+{
+    // Check the intput
+    if(addr < 0 || addr >= _size*8)
+        return;
+
     if(value)
     {
         // Set the bit at this point in the bitmap
@@ -41,15 +73,34 @@ void bitmapper::setBitmapByte(int addr, bool value)
     }
 }
 
-bool bitmapper::getBitmapByte(int addr)
+bool bitmapper::getBitmapBits(int addr)
 {
+        // Check the intput
+    if(addr < 0 || addr >= _size*8)
+        return 0;
+
     // returns true or false based on whether value
     // is set to 1 or 0 in bitmap
     return (_usageArray[addr/8] & (1 << (7 - (addr%8))));
 }
 
-void bitmapper::toggleByte(int addr)
+void bitmapper::toggleBits(int addr)
 {
+    // Check the intput
+    if(addr < 0 || addr >= _size*8)
+        return;
+
     // Toggle the bit at this point in the bitmap
     _usageArray[addr/8] ^= (1 << (7 - (addr%8)));
+}
+
+void bitmapper::debugPrintBits()
+{
+    // Print a header
+    cout << "0         1         2         3         4         5         6         7         8         9" << endl;
+    cout << "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" << endl;
+    // Print the array as bytes
+    for (int i = 0; i < _size*8; i++)
+        cout << getBitmapBits(i);
+    cout << endl;
 }
