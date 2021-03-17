@@ -97,8 +97,8 @@ void bitmapper::toggleBits(int addr)
 void bitmapper::debugPrintBits()
 {
     // Print a header
-    cout << "0         1         2         3         4         5         6         7         8         9" << endl;
-    cout << "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" << endl;
+    cout << "0         1         2         3         4         5         6         7         " << endl;
+    cout << "01234567890123456789012345678901234567890123456789012345678901234567890123456789" << endl;
     // Print the array as bytes
     for (int i = 0; i < _size*8; i++)
         cout << getBitmapBits(i);
