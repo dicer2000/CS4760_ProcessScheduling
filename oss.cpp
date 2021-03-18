@@ -30,35 +30,42 @@ void sigintHandler(int sig){ // can be called asynchronously
 
 
 // ossProcess - Process to start oss process.
-int ossProcess(string strLogFile, int nMaxSeconds)
+int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 {
     // Important items
     struct OssHeader* ossHeader;
     struct OssItem* ossItemQueue;
+    int wstatus;
+
+    // Start Time for time Analysis
+    time_t secondsStart;
 
     // Bitmap object for keeping track of children
-    bitmapper bm(16);
+    bitmapper bm(QUEUE_LENGTH);
 
+    // Debug view
     bm.debugPrintBits();
-    bm.setBitmapBits(8, true);
-    bm.setBitmapBits(14, true);
-    bm.debugPrintBits();
-
-    bitmapper bm2(16);
-    bm2 = bm;
-    bm2.debugPrintBits();
 
     // Check Input and exit if a param is bad
-    if(nMaxSeconds < 1)
+    if(timeInSecondsToTerminate < 1)
     {
-    errno = EINVAL;
-    perror("OSS: Unknown option");
-    return EXIT_FAILURE;
+        errno = EINVAL;
+        perror("OSS: Unknown option");
+        return EXIT_FAILURE;
     }
 
     // Register SIGINT handling
     signal(SIGINT, sigintHandler);
     bool isKilled = false;
+    bool isShutdown = false;
+    bool startProcesses = true;
+
+    // Setup Message Queue Functionality
+    int msgid = msgget(KEY_MESSAGE_QUEUE, 0666 | IPC_CREAT); 
+    if (msgid == -1) {
+        perror("OSS: Error creating Message Queue");
+        exit(EXIT_FAILURE);
+    }
 
     // Setup shared memory
     // allocate a shared memory segment with size of 
@@ -90,50 +97,111 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     for(int i=0; i < QUEUE_LENGTH; i++)
     {
         ossItemQueue[i].readyToProcess = false;
-        ossItemQueue[i].itemValue = 0.0f;
+        ossItemQueue[i].pidAssigned = 0;
     }
 
-
-
-/*
-    memset(usageArray, 0, sizeof(usageArray));
-
-    for(int i=0;i < 18; i++)
+    // Start of main loop that will do the following
+    // - Create new processes on avg of 1 sec intervals
+    // - schedule processes to run on round-robin basis
+    // - handle shutdown of processes
+    // - maintiain statistics of each process
+    // - assorted other misc items
+    while(!isKilled && !isShutdown)
     {
-        cout << std::bitset<8>(usageArray[i]) << " ";
-    }
-    cout << endl;
-    
-    setBitmapBits(usageArray, 10, true);
 
-    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
+        // Check bitmap for room to make new processes
+        if(startProcesses)
+        {
+            // Check if there is room for new processes
+            // in the bitmap structure
+            int nIndex = 0;
+            for(;nIndex < QUEUE_LENGTH; nIndex++)
+            {
+                if(!bm.getBitmapBits(nIndex))
+                {
+                    // Found one.  Create new process
+                    int newPID = forkProcess(ChildProcess, "logFile", nIndex);
+                    // Set bit in bitmap
+                    bm.setBitmapBits(nIndex, true);
+                    break;
+                }
+            }
+        }
 
-    for(int i=0;i < 18; i++)
-    {
-        cout << std::bitset<8>(usageArray[i]) << " ";
-    }
-    cout << endl;
+        // Terminate the process if CTRL-C is typed
+        // or if the max time-to-process has been exceeded
+        // but only send out messages to kill once
+        if((sigIntFlag || (time(NULL)-secondsStart) > timeInSecondsToTerminate) && !isKilled)
+        {
+            isKilled = true;
+            // Send signal for every child process to terminate
+            for(int nIndex=0;nIndex<QUEUE_LENGTH;nIndex++)
+            {
+                // Send signal to close if they are in-process
+                if(bm.getBitmapBits(nIndex))
+                    kill(ossItemQueue[nIndex].pidAssigned, SIGQUIT); 
+            }
 
-    setBitmapBits(usageArray, 10, false);
+            // We have notified children to terminate immediately
+            // then let program shutdown naturally -- that way
+            // memory is deallocated correctly
+            cout << endl;
+            if(sigIntFlag)
+            {
+                errno = EINTR;
+                perror("Killing processes due to ctrl-c signal");
+            }
+            else
+            {
+                errno = ETIMEDOUT;
+                perror("Killing processes due to timeout");
+            }
+        }
 
-    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
+        // Check for a PID
+        // Note :: We use the WNOHANG to call waitpid without blocking
+        // If it returns 0, it does not have a PID waiting
+        int waitPID = waitpid(-1, &wstatus, WNOHANG | WUNTRACED | WCONTINUED);
 
-    for(int i=0;i < 18; i++)
-    {
-        cout << std::bitset<8>(usageArray[i]) << " ";
-    }
-    cout << endl;
+        // No PIDs are in-process
+        if (waitPID == -1)
+        {
+            isShutdown = true;
+            break;
+        }
 
-    toggleBits(usageArray, 10);
+        // A PID Exited
+        if (WIFEXITED(wstatus) && waitPID > 0)
+        {
+            // Find the PID and remove it from the bitmap
+            for(int nIndex=0;nIndex<QUEUE_LENGTH;nIndex++)
+            {
+                if(ossItemQueue[nIndex].pidAssigned == waitPID)
+                {
+                    // Update the overall statistics
+                    ossItemQueue[nIndex].procCtrlBlock.totalCPUTime = 0;
+                    // Reset to start over
+                    ossItemQueue[nIndex].readyToProcess = false;
+                    ossItemQueue[nIndex].pidAssigned = 0;
+                    bm.setBitmapBits(nIndex, false);
+                    break;
+                }
+            }
 
-    cout << "Val: " << getBitmapBits(usageArray, 10) << endl;
 
-    for(int i=0;i < 18; i++)
-    {
-        cout << std::bitset<8>(usageArray[i]) << " ";
-    }
-    cout << endl;
-*/
+        } else if (WIFSIGNALED(wstatus) && waitPID > 0) {
+            cout << waitPID << " killed by signal " << WTERMSIG(wstatus) << endl;
+        } else if (WIFSTOPPED(wstatus) && waitPID > 0) {
+            cout << waitPID << " stopped by signal " << WTERMSIG(wstatus) << endl;
+        } else if (WIFCONTINUED(wstatus) && waitPID > 0) {
+            continue;
+        }
+
+
+    } // End of main loop
+
+
+
     // Breakdown shared memory
     // Dedetach shared memory segment from process's address space
     cout << endl;
@@ -146,14 +214,19 @@ int ossProcess(string strLogFile, int nMaxSeconds)
     if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
         perror("OSS: Error deallocating shared memory ");
     }
-
     cout << "OSS: Shared memory De-allocated" << endl << endl;
+
+    // Delete the Message Queue
+    msgctl(msgid,IPC_RMID,NULL);
+
+    cout << "OSS: Message Queue De-allocated" << endl << endl;
 
     // Success!
     return EXIT_SUCCESS;
 }
 
 
+// ForkProcess - fork a process and return the PID
 int forkProcess(string strProcess, string strLogFile, int nArrayItem)
 {
         pid_t pid = fork();

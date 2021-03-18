@@ -12,9 +12,11 @@
 
 #include <string>
 
+using namespace std;
+
 // ossProcess - Process to start oss process.
 int ossProcess(std::string, int);
 
-
+int forkProcess(string, string, int);
 
 #endif // OSS_H

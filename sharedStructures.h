@@ -27,19 +27,30 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <sys/ipc.h> 
+#include <sys/msg.h> 
 
 //***************************************************
-// Shared Memory structures
+// Structures
 //***************************************************
+struct PCB {        // Process Control Block
+    uint totalCPUTime;
+    uint totalSystemTime;
+    uint timeUsedLastBurst;
+    uint localSimulatedPID;
+    uint processPriority;
+};
+
 struct OssHeader {
     int systemClockSeconds;     // System Clock - Seconds
     int systemClockNanoseconds; // System Clock - Nanoseconds
     
 };
+
 struct OssItem {
-    float itemValue;        // The actual "Product" being returned 
-                            // from the Producer - A little Easter Egg
     bool readyToProcess;    // Ready to Process
+    int  pidAssigned;
+    PCB  procCtrlBlock;
 };
 
 const key_t KEY_SHMEM = 0x54320;  // Shared key
@@ -47,7 +58,7 @@ int shm_id; // Shared Mem ident
 char* shm_addr;
 
 //***************************************************
-// Product Semaphores
+// Semaphores
 //***************************************************
 const key_t KEY_MUTEX = 0x54321;
 const key_t KEY_EMPTY = 0x54322;
@@ -58,6 +69,17 @@ struct shmseg {
    int write_complete;
    int read_complete;
 };
+
+//***************************************************
+// Message Queue
+//***************************************************
+const key_t KEY_MESSAGE_QUEUE = 0x54324;
+
+// Structure for message queue 
+struct mesg_buffer { 
+    long mesg_type; 
+    char mesg_text[100]; 
+} message; 
 
 //***************************************************
 // Important Program Constants

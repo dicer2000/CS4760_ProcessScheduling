@@ -20,7 +20,7 @@ bitmapper::bitmapper(int nNumberOfBits)
 {
     // Determine the number of characters needed
     int nSize = nNumberOfBits / 8;
-    if(nNumberOfBits%8) // If not exactly equal
+    if(nNumberOfBits%8) // If not exactly ^8
         nSize++;
     _size = nSize;
     _usageArray = new unsigned char[nSize];
@@ -36,6 +36,7 @@ bitmapper::~bitmapper()
 // Copy Constructor
 bitmapper::bitmapper(const bitmapper& oldObj)
 {
+    // Set sizes
     _size = oldObj._size;
     _usageArray = new unsigned char[_size];
     // Copy everything over
@@ -45,7 +46,7 @@ bitmapper::bitmapper(const bitmapper& oldObj)
 // Assignment Operator
 bitmapper& bitmapper::operator=(const bitmapper& rhs)
 {
-    
+    // Delete any old object and get ready to copy rhs
     delete [] _usageArray;
     _size = rhs._size;
     _usageArray = new unsigned char[_size];
