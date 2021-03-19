@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
     }
 
     // Loop until child process is stopped or it shuts down naturally
-    while(true)
+    while(!sigQuitFlag)
     {
 
         // Listen to shared memory and look for my Type => Which is my PID
@@ -106,7 +106,6 @@ int main(int argc, char* argv[])
         int n = msgsnd(msgid, &message, sizeof(message), 0);
         cout << "Child Result: " << errno << endl;
 
-        sleep(2);
     }
 
 /*

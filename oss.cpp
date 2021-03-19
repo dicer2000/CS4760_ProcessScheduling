@@ -164,7 +164,11 @@ startProcesses = true;
             {
                 // Send signal to close if they are in-process
                 if(bm.getBitmapBits(nIndex))
-                    kill(ossItemQueue[nIndex].pidAssigned, SIGQUIT); 
+                {
+                    // Kill it and update our bitmap
+                    kill(ossItemQueue[nIndex].pidAssigned, SIGQUIT);
+                    bm.setBitmapBits(nIndex, false);
+                }
             }
 
             // We have notified children to terminate immediately
