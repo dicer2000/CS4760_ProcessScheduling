@@ -39,6 +39,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
     // Start Time for time Analysis
     time_t secondsStart;
+    uint systemClockSeconds = 0;
+    uint systemClockNanoseconds = 0;
 
     // Bitmap object for keeping track of children
     bitmapper bm(QUEUE_LENGTH);
@@ -60,7 +62,11 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     bool isShutdown = false;
     bool startProcesses = true;
 
+    // Create a Semaphore to coordinate control
+//    productSemaphores s(KEY_MUTEX, true, 1);
+
     // Setup Message Queue Functionality
+    // Note: The oss app will always have a type of 1
     int msgid = msgget(KEY_MESSAGE_QUEUE, 0666 | IPC_CREAT); 
     if (msgid == -1) {
         perror("OSS: Error creating Message Queue");
@@ -100,6 +106,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         ossItemQueue[i].pidAssigned = 0;
     }
 
+
+    int TestPID = -1;
+    long TestCounter = 0;
+startProcesses = true;
     // Start of main loop that will do the following
     // - Create new processes on avg of 1 sec intervals
     // - schedule processes to run on round-robin basis
@@ -108,9 +118,11 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     // - assorted other misc items
     while(!isKilled && !isShutdown)
     {
+        // Get Exclusive Control
+//        s.Wait();
 
         // Check bitmap for room to make new processes
-        if(startProcesses)
+        if(startProcesses && TestPID < 0)
         {
             // Check if there is room for new processes
             // in the bitmap structure
@@ -121,8 +133,23 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                 {
                     // Found one.  Create new process
                     int newPID = forkProcess(ChildProcess, "logFile", nIndex);
+    TestPID = newPID;
+    cout << "NewPID: " << TestPID << endl;
+                    // Setup Shared Memory for processing
+                    ossItemQueue[nIndex].pidAssigned = newPID;
+                    ossItemQueue[nIndex].readyToProcess = true;
                     // Set bit in bitmap
                     bm.setBitmapBits(nIndex, true);
+                    // Log it
+                    string strLogText = "OSS: Generating process with PID ";
+                    strLogText.append(GetStringFromInt(newPID));
+                    strLogText.append(" and putting it in queue ");
+                    strLogText.append(GetStringFromInt(nIndex));
+                    strLogText.append(" at time ");
+                    strLogText.append(GetStringFromInt(systemClockSeconds));
+                    strLogText.append(":");
+                    strLogText.append(GetStringFromInt(systemClockNanoseconds));
+                    WriteLogFile(strLogText, strLogFile);
                     break;
                 }
             }
@@ -144,7 +171,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
             // We have notified children to terminate immediately
             // then let program shutdown naturally -- that way
-            // memory is deallocated correctly
+            // shared resources are deallocated correctly
             cout << endl;
             if(sigIntFlag)
             {
@@ -166,6 +193,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // No PIDs are in-process
         if (waitPID == -1)
         {
+cout << "******In waitPID==-1" << endl;
             isShutdown = true;
             break;
         }
@@ -197,7 +225,32 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
             continue;
         }
 
+cout << "****** Here *******" << endl;
 
+        // *********** Testing ***************
+        if(TestPID > 0 && TestCounter%4==0)
+        {
+cout << "Sending to PID: " << TestPID << endl;
+            char lmess[] = "Hello\0";
+
+            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+            message.mesg_type = TestPID;
+            cout << message.mesg_text << endl;
+            cout << message.mesg_type << endl;
+            int n = msgsnd(msgid, &message, sizeof(message), 0);
+            cout << "Result: " << errno << endl;
+
+            msgrcv(msgid, &message, sizeof(message), OSS_MQ_TYPE, 0); 
+            cout << "OSS: from child: " << message.mesg_text << endl;
+
+        }
+        TestCounter++;
+
+        // Release Control
+//        s.Signal();
+
+
+        sleep(2);
     } // End of main loop
 
 
@@ -216,7 +269,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     }
     cout << "OSS: Shared memory De-allocated" << endl << endl;
 
-    // Delete the Message Queue
+    // Destroy the Message Queue
     msgctl(msgid,IPC_RMID,NULL);
 
     cout << "OSS: Message Queue De-allocated" << endl << endl;

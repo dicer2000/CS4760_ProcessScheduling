@@ -58,19 +58,6 @@ int shm_id; // Shared Mem ident
 char* shm_addr;
 
 //***************************************************
-// Semaphores
-//***************************************************
-const key_t KEY_MUTEX = 0x54321;
-const key_t KEY_EMPTY = 0x54322;
-const key_t KEY_FULL = 0x54323;
-
-struct shmseg {
-   int cntr;
-   int write_complete;
-   int read_complete;
-};
-
-//***************************************************
 // Message Queue
 //***************************************************
 const key_t KEY_MESSAGE_QUEUE = 0x54324;
@@ -79,7 +66,9 @@ const key_t KEY_MESSAGE_QUEUE = 0x54324;
 struct mesg_buffer { 
     long mesg_type; 
     char mesg_text[100]; 
-} message; 
+} message;
+
+const long OSS_MQ_TYPE = 1;
 
 //***************************************************
 // Important Program Constants
@@ -121,10 +110,8 @@ bool WriteLogFile(std::string& logString, std::string LogFile)
     if (logFile.is_open())
     {
         // Get the current local time
-//        string 
-        logFile << GetTimeFormatted("").c_str();
-        logFile << " " << logString.c_str();
-        logFile << std::endl;
+//        logFile << GetTimeFormatted("").c_str();
+        logFile << " " << logString.c_str() << std::endl;
         logFile.close();
         return true;
     }
