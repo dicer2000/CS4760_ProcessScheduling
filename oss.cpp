@@ -118,8 +118,6 @@ startProcesses = true;
     // - assorted other misc items
     while(!isKilled && !isShutdown)
     {
-        // Get Exclusive Control
-//        s.Wait();
 
         // Check bitmap for room to make new processes
         if(startProcesses && TestPID < 0)
@@ -245,9 +243,6 @@ cout << "Sending to PID: " << TestPID << endl;
 
         }
         TestCounter++;
-
-        // Release Control
-//        s.Signal();
 
 
         sleep(2);

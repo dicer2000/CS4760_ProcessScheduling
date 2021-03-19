@@ -29,6 +29,7 @@
 #include <fstream>
 #include <sys/ipc.h> 
 #include <sys/msg.h> 
+#include <string.h>
 
 //***************************************************
 // Structures

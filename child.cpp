@@ -93,8 +93,6 @@ int main(int argc, char* argv[])
     // Loop until child process is stopped or it shuts down naturally
     while(true)
     {
-        // Get Exclusive Control
-//        s.Wait();
 
         // Listen to shared memory and look for my Type => Which is my PID
         msgrcv(msgid, &message, sizeof(message), nPid, 0); 
@@ -107,9 +105,6 @@ int main(int argc, char* argv[])
         message.mesg_type = OSS_MQ_TYPE;
         int n = msgsnd(msgid, &message, sizeof(message), 0);
         cout << "Child Result: " << errno << endl;
-
-        // Release Control
-//        s.Signal();
 
         sleep(2);
     }
