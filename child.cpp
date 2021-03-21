@@ -26,6 +26,8 @@ void sigQuitHandler(int sig){ // can be called asynchronously
   sigQuitFlag = 1; // set flag
 }
 
+// Enum for I/O vs CPU Bound Process
+enum ChildType { IO, CPU };
 
 using namespace std;
 
@@ -38,12 +40,21 @@ int main(int argc, char* argv[])
     string strLog =  "Child app by Brett Huffman for CMP SCI 4760";
     cout << endl << strLog << endl << endl;
 
+    // Check incoming arguements
+    if(argc < 2)
+    {
+        cout << "Args: " << argv[0] << endl;
+        perror("Child: Incorrect argument found");
+        exit(EXIT_FAILURE);
+    }
+    // Get the incoming Queue ID of the process
+    const int nItemToProcess = atoi(argv[1]);
+
+    // And the log file string
+    string strLogFile = argv[2];
+
     // Register SIGQUIT handling
     signal(SIGINT, sigQuitHandler);
-
-    // Create a Semaphore to coordinate control
-//    productSemaphores s(KEY_MUTEX, true, 1);
-
 
     // Pid used throughout child
     const pid_t nPid = getpid();
@@ -52,10 +63,17 @@ int main(int argc, char* argv[])
     // Seed the randomizer with the PID
     srand(time(0) ^ nPid);
 
+    // Determine processing type and cast to a ChildType
+    // This probability (<.50 will generate more CPU)
+    const ChildType childType = getRandomProbability(0.20f) ? IO : CPU;
+    cout << "********************" << childType << endl;
+
+sleep(5);
+
     // Open the connection with the Message Queue
     // msgget creates a message queue 
     // and returns identifier 
-    int msgid = msgget(KEY_MESSAGE_QUEUE, 0666 | IPC_CREAT); 
+    int msgid = msgget(KEY_MESSAGE_QUEUE, IPC_CREAT | 0666); 
     if (msgid == -1) {
         perror("Child: Error creating Message Queue");
         exit(EXIT_FAILURE);
@@ -90,60 +108,54 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Get the queue header
+    struct OssHeader* ossHeader = 
+        (struct OssHeader*) (shm_addr);
+    // Get our entire queue - HA! Got the struct to align right
+    struct OssItem*ossItemQueue = 
+        (struct OssItem*) (shm_addr+sizeof(OssHeader));
+
+//    cout << "Child Data" << endl;
+//    cout << "C " << ossHeader->systemClockSeconds << endl;
+//    cout << "C " << ossHeader->systemClockNanoseconds << endl;
+//    cout << "C " << ossItemQueue[nItemToProcess].pidAssigned << endl;
+//    cout << "C " << ossItemQueue[nItemToProcess].PCB.totalCPUTime << endl;
+
+    // Set as ready to process
+//    ossItemQueue[nItemToProcess].bReadyToProcess =  true;
+
     // Loop until child process is stopped or it shuts down naturally
     while(!sigQuitFlag)
     {
 
         // Listen to shared memory and look for my Type => Which is my PID
-        msgrcv(msgid, &message, sizeof(message), nPid, 0); 
+
+        cout << "C: Looking for Type: " << nPid << endl;
+        cout << "C: Looking for msgid: " << msgid << endl;
+        message.mesg_type = nPid;
+        msgrcv(msgid, &message, sizeof(message), 0, 0); 
 
         cout << "Child: from OSS: " << message.mesg_text << endl;
 
         // Send back to oss
-        char lmess[] = "Hello Back At Ya\0";
-        memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+        if(1==1)
+        {
+            // The full transaction happened
+            char lmess[] = "Full\0";
+            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+        }
+        else
+        {
+            // An I/O blocked, partial transaction happened
+            char lmess[] = "Block\0";
+            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+        }
         message.mesg_type = OSS_MQ_TYPE;
         int n = msgsnd(msgid, &message, sizeof(message), 0);
-        cout << "Child Result: " << errno << endl;
 
     }
 
-/*
-    // Argument processing
-    int opt;
-    // Go through each parameter entered and
-    // prepare for processing
-    while ((opt = getopt(argc, argv, "hs:l")) != -1) {
-        switch (opt) {
-            case 'h':
-                show_usage(argv[0]);
-                return EXIT_SUCCESS;
-            case 'l':
-                strLogFile = optarg;
-                break;
-            case 's':
-                nNumberOfSeconds = atoi(optarg);
-                break;
-            case '?': // Unknown arguement                
-                if (isprint (optopt))
-                {
-                    errno = EINVAL;
-                    perror("Unknown option");
-                }
-                else
-                {
-                    errno = EINVAL;
-                    perror("Unknown option character");
-                }
-                return EXIT_FAILURE;
-            default:    // An bad input parameter was entered
-                // Show error because a bad option was found
-                perror ("oss: Error: Illegal option found");
-                show_usage(argv[0]);
-                return EXIT_FAILURE;
-        }
-    }
-*/
+
 
 }
 

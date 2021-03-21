@@ -50,5 +50,8 @@ To run the program, use the oss command.  You can use any of the command line op
 - 3/16/2021 - Added to git; Made sure initial model is working on Hoare;
 - 3/17/2021 - Created a Bitmap class for use; Research; Started creating main oos processing loop
 - 3/18/2021 - Got MessageQueue working with single child; Research
+- 3/19/2021 - Research; Debugging
+- 3/20/2021 - Rewrote queue
+- 3/21/2021 - Began testing with child
 
 *©2021 Brett W. Huffman*

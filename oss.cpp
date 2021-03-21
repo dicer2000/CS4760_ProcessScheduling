@@ -12,7 +12,7 @@
 
 #include <iostream>
 #include <string.h>
-#include <vector>
+#include <list>
 #include <unistd.h>
 #include "sharedStructures.h"
 #include "productSemaphores.h"
@@ -67,7 +67,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
     // Setup Message Queue Functionality
     // Note: The oss app will always have a type of 1
-    int msgid = msgget(KEY_MESSAGE_QUEUE, 0666 | IPC_CREAT); 
+    int msgid = msgget(KEY_MESSAGE_QUEUE, IPC_CREAT | 0666); 
     if (msgid == -1) {
         perror("OSS: Error creating Message Queue");
         exit(EXIT_FAILURE);
@@ -92,9 +92,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     // Get the queue header
     ossHeader = (struct OssHeader*) (shm_addr);
     // Get our entire queue
-    ossItemQueue = (struct OssItem*) (shm_addr+sizeof(int)+sizeof(OssHeader));
+    ossItemQueue = (struct OssItem*) (shm_addr+sizeof(OssHeader));
+    // Index to Item Currently Processing - Start at nothing processing
+    int nIndexToCurrentChildProcessing = -1;
 
-    //  productItemQueue = (struct ProductItem*) (shm_addr+sizeof(int));
     // Fill the product header
     ossHeader->systemClockSeconds = 0;
     ossHeader->systemClockNanoseconds = 0;
@@ -102,23 +103,29 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     // Set all items in queue to empty
     for(int i=0; i < QUEUE_LENGTH; i++)
     {
-        ossItemQueue[i].readyToProcess = false;
+        // Capture the statistics
+
+        // Set as ready to process
+        ossItemQueue[i].PCB.totalCPUTime = 0;
         ossItemQueue[i].pidAssigned = 0;
     }
 
 
     int TestPID = -1;
-    long TestCounter = 0;
 startProcesses = true;
     // Start of main loop that will do the following
+    // - Handle oss shutdown
     // - Create new processes on avg of 1 sec intervals
-    // - schedule processes to run on round-robin basis
-    // - handle shutdown of processes
-    // - maintiain statistics of each process
+    // - Handle child shutdowns
+    // - Dispatch processes to run on round-robin basis
+    // - Gather statistics of each process
     // - assorted other misc items
     while(!isKilled && !isShutdown)
     {
 
+        // ********************************************
+        // Create New Processes
+        // ********************************************
         // Check bitmap for room to make new processes
         if(startProcesses && TestPID < 0)
         {
@@ -135,9 +142,18 @@ startProcesses = true;
     cout << "NewPID: " << TestPID << endl;
                     // Setup Shared Memory for processing
                     ossItemQueue[nIndex].pidAssigned = newPID;
-                    ossItemQueue[nIndex].readyToProcess = true;
+//                    ossItemQueue[nIndex].bReadyToProcess = false;
+                    ossItemQueue[nIndex].PCB.totalCPUTime = 0;
+                    ossItemQueue[nIndex].PCB.totalSystemTime = 0;
+                    ossItemQueue[nIndex].PCB.timeUsedLastBurst = 0;
+                    ossItemQueue[nIndex].PCB.localSimulatedPID = 0;
+                    ossItemQueue[nIndex].PCB.processPriority = 0;
+
                     // Set bit in bitmap
                     bm.setBitmapBits(nIndex, true);
+
+                    // Set the current index
+//                    nIndexToCurrentChildProcessing = nIndex;
                     // Log it
                     string strLogText = "OSS: Generating process with PID ";
                     strLogText.append(GetStringFromInt(newPID));
@@ -148,11 +164,15 @@ startProcesses = true;
                     strLogText.append(":");
                     strLogText.append(GetStringFromInt(systemClockNanoseconds));
                     WriteLogFile(strLogText, strLogFile);
+
                     break;
                 }
             }
         }
 
+        // ********************************************
+        // Handle Ctrl-C or End Of Simulation
+        // ********************************************
         // Terminate the process if CTRL-C is typed
         // or if the max time-to-process has been exceeded
         // but only send out messages to kill once
@@ -187,6 +207,10 @@ startProcesses = true;
             }
         }
 
+
+        // ********************************************
+        // Handle Child Shutdowns
+        // ********************************************
         // Check for a PID
         // Note :: We use the WNOHANG to call waitpid without blocking
         // If it returns 0, it does not have a PID waiting
@@ -209,15 +233,13 @@ cout << "******In waitPID==-1" << endl;
                 if(ossItemQueue[nIndex].pidAssigned == waitPID)
                 {
                     // Update the overall statistics
-                    ossItemQueue[nIndex].procCtrlBlock.totalCPUTime = 0;
+                    ossItemQueue[nIndex].PCB.totalCPUTime = 0;
                     // Reset to start over
-                    ossItemQueue[nIndex].readyToProcess = false;
                     ossItemQueue[nIndex].pidAssigned = 0;
                     bm.setBitmapBits(nIndex, false);
                     break;
                 }
             }
-
 
         } else if (WIFSIGNALED(wstatus) && waitPID > 0) {
             cout << waitPID << " killed by signal " << WTERMSIG(wstatus) << endl;
@@ -227,29 +249,49 @@ cout << "******In waitPID==-1" << endl;
             continue;
         }
 
-cout << "****** Here *******" << endl;
 
-        // *********** Testing ***************
-        if(TestPID > 0 && TestCounter%4==0)
+        // ********************************************
+        // Dispatch processes to run on round-robin basis
+        // Gather Stats
+        // ********************************************
+//sleep(1);
+cout << "****** Child Dispatch *******" << endl;
+        // Find next item to process
+        
+//        if(TestCounter%4==0)
+        for(int i = 0; i < QUEUE_LENGTH; i++)
         {
-cout << "Sending to PID: " << TestPID << endl;
-            char lmess[] = "Hello\0";
+            // Check for bit set -- but do it as a circular queue
+            if(bm.getBitmapBits((nIndexToCurrentChildProcessing + i + 1)%QUEUE_LENGTH))
+            {
+                // Found the next item to dispatch
+                nIndexToCurrentChildProcessing =  (nIndexToCurrentChildProcessing + i + 1)%QUEUE_LENGTH;
+                // Check ready to process
+//                if(!ossItemQueue[i].bReadyToProcess)
+//                    continue;   // Not ready, go to next
 
-            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
-            message.mesg_type = TestPID;
-            cout << message.mesg_text << endl;
-            cout << message.mesg_type << endl;
-            int n = msgsnd(msgid, &message, sizeof(message), 0);
-            cout << "Result: " << errno << endl;
+                cout << "O: Sending next item in Schedule Queue: " << nIndexToCurrentChildProcessing << endl;
+                
+                // Dispatch it
+                char lmess[] = "Dispatch\0";
+                memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+                message.mesg_type = ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned;
+                cout << "O: " << message.mesg_text << endl;
+                cout << "O: type: " << message.mesg_type << endl;
+                cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
 
-            msgrcv(msgid, &message, sizeof(message), OSS_MQ_TYPE, 0); 
-            cout << "OSS: from child: " << message.mesg_text << endl;
+                int n = msgsnd(msgid, &message, sizeof(message), 0);
+                
+                cout << "O: nval: " << n << endl;
+                cout << "O: Result: " << errno << endl;
+                msgrcv(msgid, &message, sizeof(message), OSS_MQ_TYPE, 0); 
+                cout << "OSS: from child: " << message.mesg_text << endl;
 
+                break;
+            }
+            // Not found, don't schedule anything to run...
         }
-        TestCounter++;
-
-
-        sleep(2);
+        
     } // End of main loop
 
 

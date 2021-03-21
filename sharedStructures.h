@@ -34,7 +34,7 @@
 //***************************************************
 // Structures
 //***************************************************
-struct PCB {        // Process Control Block
+struct ProcessControlBlock {        // Process Control Block
     uint totalCPUTime;
     uint totalSystemTime;
     uint timeUsedLastBurst;
@@ -49,9 +49,9 @@ struct OssHeader {
 };
 
 struct OssItem {
-    bool readyToProcess;    // Ready to Process
+    ProcessControlBlock  PCB;
     int  pidAssigned;
-    PCB  procCtrlBlock;
+//    bool bReadyToProcess;
 };
 
 const key_t KEY_SHMEM = 0x54320;  // Shared key
@@ -65,8 +65,8 @@ const key_t KEY_MESSAGE_QUEUE = 0x54324;
 
 // Structure for message queue 
 struct mesg_buffer { 
-    long mesg_type; 
     char mesg_text[100]; 
+    long mesg_type; 
 } message;
 
 const long OSS_MQ_TYPE = 1;
@@ -160,5 +160,19 @@ void toggleByte(unsigned char* bitmap, int addr)
     // Toggle the bit at this point in the bitmap
     bitmap[addr/8] ^= (1 << (7 - (addr%8)));
 }
+
+// Returns a random number between two values
+int getRandomValue(int MinVal, int MaxVal)
+{
+    return rand()%MaxVal+MinVal;
+}
+
+// Returns a random true/false based on the probability passed
+// Be sure to run srand first!
+bool getRandomProbability(float ProbabilityOfTrue)
+{
+  return rand()%100 < (ProbabilityOfTrue * 100);
+}
+
 
 #endif // SHAREDSTRUCTURES_H

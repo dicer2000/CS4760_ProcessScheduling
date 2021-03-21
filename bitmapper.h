@@ -14,8 +14,8 @@
 class bitmapper
 {
     private:
-        unsigned char* _usageArray;
         int _size;
+        unsigned char* _usageArray;
         
     public:
 
