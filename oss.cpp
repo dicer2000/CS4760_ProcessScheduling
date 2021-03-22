@@ -254,7 +254,7 @@ cout << "******In waitPID==-1" << endl;
         // Dispatch processes to run on round-robin basis
         // Gather Stats
         // ********************************************
-//sleep(1);
+//sleep(2);
 cout << "****** Child Dispatch *******" << endl;
         // Find next item to process
         
@@ -271,23 +271,51 @@ cout << "****** Child Dispatch *******" << endl;
 //                    continue;   // Not ready, go to next
 
                 cout << "O: Sending next item in Schedule Queue: " << nIndexToCurrentChildProcessing << endl;
+                sleep(1);
                 
+                // Dispatch it
+//                char lmess[] = "Dispatch";
+                strcpy(msg.text, "Dispatch");
+//                memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+                msg.type = ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned;
+                cout << "O: " << msg.text << endl;
+                cout << "O: type: " << msg.type << endl;
+                cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
+
+                int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
+                
+
+
+                cout << "O: nval: " << n << endl;
+                cout << "O: Result: " << errno << endl;
+
+                msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), OSS_MQ_TYPE, 0); 
+                cout << "OSS: from child: " << msg.text << endl;
+
+                break;
+
+                /*
                 // Dispatch it
                 char lmess[] = "Dispatch\0";
                 memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
                 message.mesg_type = ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned;
-                cout << "O: " << message.mesg_text << endl;
+
                 cout << "O: type: " << message.mesg_type << endl;
                 cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
+                cout << "O: MessType: " << message.mesg_type << " / " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
+sleep(2);
 
                 int n = msgsnd(msgid, &message, sizeof(message), 0);
                 
-                cout << "O: nval: " << n << endl;
+//                cout << "O: nval: " << n << endl;
                 cout << "O: Result: " << errno << endl;
+
+//                message.mesg_type = OSS_MQ_TYPE;
                 msgrcv(msgid, &message, sizeof(message), OSS_MQ_TYPE, 0); 
                 cout << "OSS: from child: " << message.mesg_text << endl;
 
                 break;
+                */
             }
             // Not found, don't schedule anything to run...
         }
@@ -318,7 +346,6 @@ cout << "****** Child Dispatch *******" << endl;
     // Success!
     return EXIT_SUCCESS;
 }
-
 
 // ForkProcess - fork a process and return the PID
 int forkProcess(string strProcess, string strLogFile, int nArrayItem)

@@ -40,6 +40,10 @@ struct ProcessControlBlock {        // Process Control Block
     uint timeUsedLastBurst;
     uint localSimulatedPID;
     uint processPriority;
+    uint blockTimeSeconds;
+    uint blockTimeNanoseconds;
+    uint blockedUntilSeconds;
+    uint blockedUntilNanoseconds;
 };
 
 struct OssHeader {
@@ -64,10 +68,10 @@ char* shm_addr;
 const key_t KEY_MESSAGE_QUEUE = 0x54324;
 
 // Structure for message queue 
-struct mesg_buffer { 
-    char mesg_text[100]; 
-    long mesg_type; 
-} message;
+struct message {
+    long type;
+    char text[20];
+} msg;
 
 const long OSS_MQ_TYPE = 1;
 
@@ -80,6 +84,8 @@ const int QUEUE_LENGTH = 18;
 const char* ChildProcess = "./child";
 const int maxTimeBetweenNewProcsNS = 10;
 const int maxTimeBetweenNewProcsSecs = 10;
+const int fullTransactionTimeInNS = 10000000;
+const float percentageCPU = 0.9f;   // Higher numbers give more CPU Processes
 
 /***************************************************
  * Helper Functions

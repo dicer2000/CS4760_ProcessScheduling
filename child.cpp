@@ -65,10 +65,8 @@ int main(int argc, char* argv[])
 
     // Determine processing type and cast to a ChildType
     // This probability (<.50 will generate more CPU)
-    const ChildType childType = getRandomProbability(0.20f) ? IO : CPU;
-    cout << "********************" << childType << endl;
-
-sleep(5);
+    const ChildType childType = getRandomProbability(percentageCPU) ? IO : CPU;
+    //cout << "********************" << childType << endl;
 
     // Open the connection with the Message Queue
     // msgget creates a message queue 
@@ -128,30 +126,106 @@ sleep(5);
     while(!sigQuitFlag)
     {
 
-        // Listen to shared memory and look for my Type => Which is my PID
+        // Set probabilities for this round
+        bool willInterrupt = false;
+        bool willShutdown = false;
+        int nanoSecondsToShutdown = getRandomValue(200, 450);
+        int nanoSecondsToInterrupt = getRandomValue(200, 450);   // Only used if interrupt happens
+        if(childType == CPU)
+            // CPU Bound process - less likely to get interrupted
+            willInterrupt = getRandomProbability(0.10f) ? true : false;
+        else
+            // IO Bound - much more likely to get interrupted
+            willInterrupt = getRandomProbability(0.90f) ? true : false;
 
-        cout << "C: Looking for Type: " << nPid << endl;
-        cout << "C: Looking for msgid: " << msgid << endl;
-        message.mesg_type = nPid;
-        msgrcv(msgid, &message, sizeof(message), 0, 0); 
 
-        cout << "Child: from OSS: " << message.mesg_text << endl;
+        msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), nPid, 0); 
+
+        cout << "Child: from OSS: " << msg.text << endl;
 
         // Send back to oss
         if(1==1)
         {
             // The full transaction happened
-            char lmess[] = "Full\0";
-            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+//            char lmess[] = "Full\0";
+            strcpy(msg.text, "Full");
+//            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
         }
         else
         {
             // An I/O blocked, partial transaction happened
-            char lmess[] = "Block\0";
-            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+//            char lmess[] = "Block\0";
+//            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+            strcpy(msg.text, "Block");
+
         }
-        message.mesg_type = OSS_MQ_TYPE;
-        int n = msgsnd(msgid, &message, sizeof(message), 0);
+        msg.type = OSS_MQ_TYPE;
+
+        int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
+        
+        cout << "O: nval: " << n << endl;
+        cout << "O: Result: " << errno << endl;
+
+/*
+        // Listen to shared memory and look for my Type => Which is my PID
+//        message.mesg_type = nPid;
+//        cout << "C: MessType: " << message.mesg_type << " / " << nPid << endl;
+        msgrcv(msgid, &message, sizeof(message), nPid, 0); 
+
+        cout << "Child: from OSS: " << message.mesg_text << endl;
+        cout << "C: MessType: " << message.mesg_type << " / " << nPid << endl;
+        cout << "C: S: " << willShutdown << "  I: " << willInterrupt << endl;
+sleep(2);
+        // Send back to oss
+        if(willShutdown)
+        {
+            mesg_buffer lMB;
+            char lmess[] = "Shutdown\0";
+            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToShutdown;
+            // Send the message
+            lMB.mesg_type = OSS_MQ_TYPE;
+
+            cout << "C: SD MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
+
+            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
+            cout << "C: Result: " << errno << endl;
+            // Shutdown gracefully
+            return EXIT_SUCCESS;
+        }
+        else if(willInterrupt)
+        {
+            // An interrupt happened
+            mesg_buffer lMB;
+            char lmess[] = "Block\0";
+            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToInterrupt;
+            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToInterrupt;
+            ossItemQueue[nItemToProcess].PCB.blockTimeSeconds += getRandomValue(0, 5);
+            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);          
+            lMB.mesg_type = OSS_MQ_TYPE;
+
+            cout << "C: IN MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
+
+            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
+            cout << "C: Result: " << errno << endl;
+        }
+        else
+        {
+            // A full transaction happened
+            mesg_buffer lMB;
+            char lmess[] = "Full\0";
+            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += fullTransactionTimeInNS;
+            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = fullTransactionTimeInNS;
+            lMB.mesg_type = OSS_MQ_TYPE;
+
+            cout << "C: FL MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
+
+            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
+            cout << "C: Result: " << errno << endl;
+        }
+    */
 
     }
 

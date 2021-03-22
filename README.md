@@ -52,6 +52,6 @@ To run the program, use the oss command.  You can use any of the command line op
 - 3/18/2021 - Got MessageQueue working with single child; Research
 - 3/19/2021 - Research; Debugging
 - 3/20/2021 - Rewrote queue
-- 3/21/2021 - Began testing with child
+- 3/21/2021 - Began testing with child; Added timing to child; testing
 
 *©2021 Brett W. Huffman*
