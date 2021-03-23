@@ -55,7 +55,7 @@ struct OssHeader {
 struct OssItem {
     ProcessControlBlock  PCB;
     int  pidAssigned;
-//    bool bReadyToProcess;
+    bool bReadyToProcess;
 };
 
 const key_t KEY_SHMEM = 0x54320;  // Shared key

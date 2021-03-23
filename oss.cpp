@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <string.h>
+#include <queue>
 #include <list>
 #include <unistd.h>
 #include "sharedStructures.h"
@@ -36,6 +37,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     struct OssHeader* ossHeader;
     struct OssItem* ossItemQueue;
     int wstatus;
+
+    // Queues for managing processes
+    queue<int> readyQueue;
+    list<int> blockedList;
 
     // Start Time for time Analysis
     time_t secondsStart;
@@ -142,7 +147,7 @@ startProcesses = true;
     cout << "NewPID: " << TestPID << endl;
                     // Setup Shared Memory for processing
                     ossItemQueue[nIndex].pidAssigned = newPID;
-//                    ossItemQueue[nIndex].bReadyToProcess = false;
+                    ossItemQueue[nIndex].bReadyToProcess = true;
                     ossItemQueue[nIndex].PCB.totalCPUTime = 0;
                     ossItemQueue[nIndex].PCB.totalSystemTime = 0;
                     ossItemQueue[nIndex].PCB.timeUsedLastBurst = 0;
@@ -151,6 +156,10 @@ startProcesses = true;
 
                     // Set bit in bitmap
                     bm.setBitmapBits(nIndex, true);
+
+                    // Push immediately onto the Ready Queue
+                    cout << "O: Pushing: " << nIndex << endl;
+                    readyQueue.push(nIndex);
 
                     // Set the current index
 //                    nIndexToCurrentChildProcessing = nIndex;
@@ -227,6 +236,7 @@ cout << "******In waitPID==-1" << endl;
         // A PID Exited
         if (WIFEXITED(wstatus) && waitPID > 0)
         {
+            cout << "O: ********************* Exited: " << waitPID << endl;
             // Find the PID and remove it from the bitmap
             for(int nIndex=0;nIndex<QUEUE_LENGTH;nIndex++)
             {
@@ -249,6 +259,25 @@ cout << "******In waitPID==-1" << endl;
             continue;
         }
 
+/*
+        // ********************************************
+        // Manage BlockedList - Push aged BlockedList items onto the ReadyQueue
+        // ********************************************
+        for(list<int>::iterator blItem = blockedList.begin(); 
+            blItem != blockedList.end(); ++blItem)
+        {
+            int nItemToCheck = *blItem;
+            cout << "OS: Unblock: " << nItemToCheck << endl;
+            if(ossItemQueue[nItemToCheck].bReadyToProcess)
+            {
+                blockedList.erase(blItem);
+                // Just put one
+                readyQueue.push(nItemToCheck);
+                break;
+            }
+        }
+*/
+
 
         // ********************************************
         // Dispatch processes to run on round-robin basis
@@ -259,40 +288,64 @@ cout << "****** Child Dispatch *******" << endl;
         // Find next item to process
         
 //        if(TestCounter%4==0)
-        for(int i = 0; i < QUEUE_LENGTH; i++)
+        if(!readyQueue.empty())
         {
-            // Check for bit set -- but do it as a circular queue
-            if(bm.getBitmapBits((nIndexToCurrentChildProcessing + i + 1)%QUEUE_LENGTH))
+            // Get next item from the ready queue
+            int nIndexToNextChildProcessing = readyQueue.front();  
+            readyQueue.pop();          
+            // Check for bit set
+            if(bm.getBitmapBits(nIndexToNextChildProcessing))
             {
-                // Found the next item to dispatch
-                nIndexToCurrentChildProcessing =  (nIndexToCurrentChildProcessing + i + 1)%QUEUE_LENGTH;
                 // Check ready to process
-//                if(!ossItemQueue[i].bReadyToProcess)
-//                    continue;   // Not ready, go to next
+                if(!ossItemQueue[nIndexToNextChildProcessing].bReadyToProcess)
+                    continue;   // Not ready, go to next
 
-                cout << "O: Sending next item in Schedule Queue: " << nIndexToCurrentChildProcessing << endl;
+                cout << "O: Sending next item in Schedule Queue: " << nIndexToNextChildProcessing << endl;
                 sleep(1);
                 
                 // Dispatch it
-//                char lmess[] = "Dispatch";
                 strcpy(msg.text, "Dispatch");
-//                memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
-                msg.type = ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned;
+                msg.type = ossItemQueue[nIndexToNextChildProcessing].pidAssigned;
                 cout << "O: " << msg.text << endl;
                 cout << "O: type: " << msg.type << endl;
-                cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
+//                cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
 
                 int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
-                
-
-
-                cout << "O: nval: " << n << endl;
-                cout << "O: Result: " << errno << endl;
+            
+                //cout << "O: nval: " << n << endl;
+                //cout << "O: Result: " << errno << endl;
 
                 msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), OSS_MQ_TYPE, 0); 
                 cout << "OSS: from child: " << msg.text << endl;
 
-                break;
+                // Child shutting down, so handle
+                if(strcmp(msg.text, "Shutdown")==0)
+                {
+                    cout << "OS ****** - I'm stutting" << endl;
+                    // Update the overall statistics
+                    ossItemQueue[nIndexToNextChildProcessing].PCB.totalCPUTime = 0;
+                    // Reset to start over
+                    ossItemQueue[nIndexToNextChildProcessing].pidAssigned = 0;
+                    bm.setBitmapBits(nIndexToNextChildProcessing, false);
+
+                    isShutdown = true;
+                    continue;
+                }
+
+                if(strcmp(msg.text, "Block")==0)
+                {
+                    cout << "OS ****** - I'm blocking" << endl;
+                    cout << "OS Pushing: " << nIndexToNextChildProcessing << endl;
+                    readyQueue.push(nIndexToNextChildProcessing);
+                }
+                else
+                {
+                    cout << "OS ****** - I'm full run" << endl;
+                    readyQueue.push(nIndexToNextChildProcessing);
+                }
+
+//                cout << strcmp(msg.text, "Shutdown") << " " << msg.text << endl;
+                sleep (2);
 
                 /*
                 // Dispatch it

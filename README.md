@@ -53,5 +53,6 @@ To run the program, use the oss command.  You can use any of the command line op
 - 3/19/2021 - Research; Debugging
 - 3/20/2021 - Rewrote queue
 - 3/21/2021 - Began testing with child; Added timing to child; testing
+- 3/22/2021 - Research; Added Ready and Blocked queue to project
 
 *©2021 Brett W. Huffman*

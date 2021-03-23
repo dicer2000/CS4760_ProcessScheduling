@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
 
         // Set probabilities for this round
         bool willInterrupt = false;
-        bool willShutdown = false;
+        bool willShutdown = getRandomProbability(0.10f);
         int nanoSecondsToShutdown = getRandomValue(200, 450);
         int nanoSecondsToInterrupt = getRandomValue(200, 450);   // Only used if interrupt happens
         if(childType == CPU)
@@ -144,27 +144,37 @@ int main(int argc, char* argv[])
         cout << "Child: from OSS: " << msg.text << endl;
 
         // Send back to oss
-        if(1==1)
+        if(willShutdown)
         {
-            // The full transaction happened
-//            char lmess[] = "Full\0";
-            strcpy(msg.text, "Full");
-//            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
+            strcpy(msg.text, "Shutdown");
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToShutdown;
+            // Send the message
+            msg.type = OSS_MQ_TYPE;
+            int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
+            cout << "C: **** Shutting down child" << endl;
+            return EXIT_SUCCESS;
+        }
+        else if(willInterrupt)
+        {
+            // An interrupt happened
+            strcpy(msg.text, "Block");
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToInterrupt;
+            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToInterrupt;
+            ossItemQueue[nItemToProcess].PCB.blockTimeSeconds += getRandomValue(0, 5);
+            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);          
         }
         else
         {
-            // An I/O blocked, partial transaction happened
-//            char lmess[] = "Block\0";
-//            memcpy(message.mesg_text, lmess, strlen(lmess)+1 );
-            strcpy(msg.text, "Block");
-
+            strcpy(msg.text, "Full");
+            ossItemQueue[nItemToProcess].PCB.totalCPUTime += fullTransactionTimeInNS;
+            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = fullTransactionTimeInNS;
         }
+        // Actually send the message back
         msg.type = OSS_MQ_TYPE;
-
         int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
         
-        cout << "O: nval: " << n << endl;
-        cout << "O: Result: " << errno << endl;
+//        cout << "C: nval: " << n << endl;
+//        cout << "C: Result: " << errno << endl;
 
 /*
         // Listen to shared memory and look for my Type => Which is my PID
