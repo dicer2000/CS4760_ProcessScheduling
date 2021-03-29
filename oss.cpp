@@ -28,7 +28,7 @@ void sigintHandler(int sig){ // can be called asynchronously
   sigIntFlag = 1; // set flag
 }
 
-
+const int MAX_PROCESSES = 100;
 
 // ossProcess - Process to start oss process.
 int ossProcess(string strLogFile, int timeInSecondsToTerminate)
@@ -43,15 +43,14 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     list<int> blockedList;
 
     // Start Time for time Analysis
-    time_t secondsStart;
+    // Get the time in seconds for our process to make
+    // sure we don't exceed the max amount of processing time
+    time_t secondsStart = time(NULL);   // Start time
     uint systemClockSeconds = 0;
     uint systemClockNanoseconds = 0;
 
     // Bitmap object for keeping track of children
     bitmapper bm(QUEUE_LENGTH);
-
-    // Debug view
-    bm.debugPrintBits();
 
     // Check Input and exit if a param is bad
     if(timeInSecondsToTerminate < 1)
@@ -66,6 +65,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     bool isKilled = false;
     bool isShutdown = false;
     bool startProcesses = true;
+    int nProcessCount = 0;   // 100 MAX
 
     // Create a Semaphore to coordinate control
 //    productSemaphores s(KEY_MUTEX, true, 1);
@@ -116,7 +116,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     }
 
 
-    int TestPID = -1;
+//    int TestPID = -1;
 startProcesses = true;
     // Start of main loop that will do the following
     // - Handle oss shutdown
@@ -132,7 +132,7 @@ startProcesses = true;
         // Create New Processes
         // ********************************************
         // Check bitmap for room to make new processes
-        if(startProcesses && TestPID < 0)
+        if(nProcessCount < MAX_PROCESSES && startProcesses) // && TestPID < 0)
         {
             // Check if there is room for new processes
             // in the bitmap structure
@@ -143,8 +143,8 @@ startProcesses = true;
                 {
                     // Found one.  Create new process
                     int newPID = forkProcess(ChildProcess, "logFile", nIndex);
-    TestPID = newPID;
-    cout << "NewPID: " << TestPID << endl;
+//    TestPID = newPID;
+
                     // Setup Shared Memory for processing
                     ossItemQueue[nIndex].pidAssigned = newPID;
                     ossItemQueue[nIndex].bReadyToProcess = true;
@@ -158,21 +158,23 @@ startProcesses = true;
                     bm.setBitmapBits(nIndex, true);
 
                     // Push immediately onto the Ready Queue
-                    cout << "O: Pushing: " << nIndex << endl;
                     readyQueue.push(nIndex);
+
+                    // Increment how many have been made
+                    nProcessCount++;
 
                     // Set the current index
 //                    nIndexToCurrentChildProcessing = nIndex;
                     // Log it
-                    string strLogText = "OSS: Generating process with PID ";
-                    strLogText.append(GetStringFromInt(newPID));
-                    strLogText.append(" and putting it in queue ");
-                    strLogText.append(GetStringFromInt(nIndex));
-                    strLogText.append(" at time ");
-                    strLogText.append(GetStringFromInt(systemClockSeconds));
-                    strLogText.append(":");
-                    strLogText.append(GetStringFromInt(systemClockNanoseconds));
-                    WriteLogFile(strLogText, strLogFile);
+                    string strProcessInfo = "Generating process ";
+                    strProcessInfo.append(GetStringFromInt(newPID));
+                    strProcessInfo.append(" index: ");
+                    strProcessInfo.append(GetStringFromInt(nIndex));
+                    cout << formatLogItem("OSS\t", systemClockSeconds, systemClockNanoseconds, strProcessInfo);
+
+//                    WriteLogFile(strLogText, strLogFile);
+    // Debug view
+    bm.debugPrintBits();
 
                     break;
                 }
@@ -203,7 +205,6 @@ startProcesses = true;
             // We have notified children to terminate immediately
             // then let program shutdown naturally -- that way
             // shared resources are deallocated correctly
-            cout << endl;
             if(sigIntFlag)
             {
                 errno = EINTR;
@@ -284,7 +285,7 @@ cout << "******In waitPID==-1" << endl;
         // Gather Stats
         // ********************************************
 //sleep(2);
-cout << "****** Child Dispatch *******" << endl;
+//cout << "****** Child Dispatch *******" << endl;
         // Find next item to process
         
 //        if(TestCounter%4==0)
@@ -300,15 +301,14 @@ cout << "****** Child Dispatch *******" << endl;
                 if(!ossItemQueue[nIndexToNextChildProcessing].bReadyToProcess)
                     continue;   // Not ready, go to next
 
-                cout << "O: Sending next item in Schedule Queue: " << nIndexToNextChildProcessing << endl;
-                sleep(1);
+//                cout << "O: Sending next item in Schedule Queue: " << nIndexToNextChildProcessing << endl;
+                string strChildInfo = "Dispatching process ";
+                strChildInfo.append(GetStringFromInt(ossItemQueue[nIndexToNextChildProcessing].pidAssigned));
+                cout << formatLogItem("OSS", systemClockSeconds, systemClockNanoseconds, strChildInfo);
                 
                 // Dispatch it
                 strcpy(msg.text, "Dispatch");
                 msg.type = ossItemQueue[nIndexToNextChildProcessing].pidAssigned;
-                cout << "O: " << msg.text << endl;
-                cout << "O: type: " << msg.type << endl;
-//                cout << "O: " << ossItemQueue[nIndexToCurrentChildProcessing].pidAssigned << endl;
 
                 int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
             
@@ -316,12 +316,12 @@ cout << "****** Child Dispatch *******" << endl;
                 //cout << "O: Result: " << errno << endl;
 
                 msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), OSS_MQ_TYPE, 0); 
-                cout << "OSS: from child: " << msg.text << endl;
+//                cout << "OSS: from child: " << msg.text << endl;
 
                 // Child shutting down, so handle
                 if(strcmp(msg.text, "Shutdown")==0)
                 {
-                    cout << "OS ****** - I'm stutting" << endl;
+//                    cout << "OS ****** - I'm stutting" << endl;
                     // Update the overall statistics
                     ossItemQueue[nIndexToNextChildProcessing].PCB.totalCPUTime = 0;
                     // Reset to start over
@@ -334,18 +334,19 @@ cout << "****** Child Dispatch *******" << endl;
 
                 if(strcmp(msg.text, "Block")==0)
                 {
-                    cout << "OS ****** - I'm blocking" << endl;
-                    cout << "OS Pushing: " << nIndexToNextChildProcessing << endl;
+//                    cout << "OS ****** - I'm blocking" << endl;
+//                    cout << "OS Pushing: " << nIndexToNextChildProcessing << endl;
                     readyQueue.push(nIndexToNextChildProcessing);
                 }
                 else
                 {
-                    cout << "OS ****** - I'm full run" << endl;
+//                    cout << "OS ****** - I'm full run" << endl;
                     readyQueue.push(nIndexToNextChildProcessing);
                 }
 
 //                cout << strcmp(msg.text, "Shutdown") << " " << msg.text << endl;
-                sleep (2);
+//                sleep (2);
+
 
                 /*
                 // Dispatch it

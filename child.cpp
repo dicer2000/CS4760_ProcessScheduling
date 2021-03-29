@@ -37,8 +37,7 @@ int main(int argc, char* argv[])
     // This main area will only handle the processing
     // of the incoming arguments.
 
-    string strLog =  "Child app by Brett Huffman for CMP SCI 4760";
-    cout << endl << strLog << endl << endl;
+//    string strLog =  "Child app by Brett Huffman for CMP SCI 4760";
 
     // Check incoming arguements
     if(argc < 2)
@@ -58,7 +57,7 @@ int main(int argc, char* argv[])
 
     // Pid used throughout child
     const pid_t nPid = getpid();
-    cout << "Child PID: " << nPid << endl;
+//    cout << "Child PID: " << nPid << endl;
 
     // Seed the randomizer with the PID
     srand(time(0) ^ nPid);
@@ -113,14 +112,17 @@ int main(int argc, char* argv[])
     struct OssItem*ossItemQueue = 
         (struct OssItem*) (shm_addr+sizeof(OssHeader));
 
-//    cout << "Child Data" << endl;
-//    cout << "C " << ossHeader->systemClockSeconds << endl;
-//    cout << "C " << ossHeader->systemClockNanoseconds << endl;
-//    cout << "C " << ossItemQueue[nItemToProcess].pidAssigned << endl;
-//    cout << "C " << ossItemQueue[nItemToProcess].PCB.totalCPUTime << endl;
 
-    // Set as ready to process
-//    ossItemQueue[nItemToProcess].bReadyToProcess =  true;
+    // Report that process has started and what type it is
+    string strChildInfo = "PROC ";
+    strChildInfo.append(GetStringFromInt(nItemToProcess));
+    strChildInfo.append("\t");
+    string strChildInfo2 = "New Process Started = type: ";
+    if(childType == CPU) strChildInfo2.append("CPU");
+    else strChildInfo2.append("I/O");
+    cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
+        , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, strChildInfo2);
+
 
     // Loop until child process is stopped or it shuts down naturally
     while(!sigQuitFlag)
@@ -141,8 +143,6 @@ int main(int argc, char* argv[])
 
         msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), nPid, 0); 
 
-        cout << "Child: from OSS: " << msg.text << endl;
-
         // Send back to oss
         if(willShutdown)
         {
@@ -151,7 +151,13 @@ int main(int argc, char* argv[])
             // Send the message
             msg.type = OSS_MQ_TYPE;
             int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
-            cout << "C: **** Shutting down child" << endl;
+            
+            string strChildInfo = "PROC ";
+            strChildInfo.append(GetStringFromInt(nItemToProcess));
+            strChildInfo.append("\t");
+            cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
+                , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, "Shutting Down");
+
             return EXIT_SUCCESS;
         }
         else if(willInterrupt)
@@ -161,7 +167,20 @@ int main(int argc, char* argv[])
             ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToInterrupt;
             ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToInterrupt;
             ossItemQueue[nItemToProcess].PCB.blockTimeSeconds += getRandomValue(0, 5);
-            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);          
+            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);
+
+            // Log what happened
+            string strChildInfo = "PROC ";
+            strChildInfo.append(GetStringFromInt(nItemToProcess));
+            strChildInfo.append("\t");
+            string strChildInfo2 = "Processed was Blocked after ";
+            strChildInfo2.append(GetStringFromInt(ossItemQueue[nItemToProcess].PCB.blockTimeSeconds));
+            strChildInfo2.append("s:");
+            strChildInfo2.append(GetStringFromInt(ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds));
+            strChildInfo2.append("ms");
+            cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
+                , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, strChildInfo2);
+       
         }
         else
         {
@@ -169,6 +188,7 @@ int main(int argc, char* argv[])
             ossItemQueue[nItemToProcess].PCB.totalCPUTime += fullTransactionTimeInNS;
             ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = fullTransactionTimeInNS;
         }
+
         // Actually send the message back
         msg.type = OSS_MQ_TYPE;
         int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
@@ -176,71 +196,7 @@ int main(int argc, char* argv[])
 //        cout << "C: nval: " << n << endl;
 //        cout << "C: Result: " << errno << endl;
 
-/*
-        // Listen to shared memory and look for my Type => Which is my PID
-//        message.mesg_type = nPid;
-//        cout << "C: MessType: " << message.mesg_type << " / " << nPid << endl;
-        msgrcv(msgid, &message, sizeof(message), nPid, 0); 
-
-        cout << "Child: from OSS: " << message.mesg_text << endl;
-        cout << "C: MessType: " << message.mesg_type << " / " << nPid << endl;
-        cout << "C: S: " << willShutdown << "  I: " << willInterrupt << endl;
-sleep(2);
-        // Send back to oss
-        if(willShutdown)
-        {
-            mesg_buffer lMB;
-            char lmess[] = "Shutdown\0";
-            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
-            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToShutdown;
-            // Send the message
-            lMB.mesg_type = OSS_MQ_TYPE;
-
-            cout << "C: SD MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
-
-            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
-            cout << "C: Result: " << errno << endl;
-            // Shutdown gracefully
-            return EXIT_SUCCESS;
-        }
-        else if(willInterrupt)
-        {
-            // An interrupt happened
-            mesg_buffer lMB;
-            char lmess[] = "Block\0";
-            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
-            ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToInterrupt;
-            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToInterrupt;
-            ossItemQueue[nItemToProcess].PCB.blockTimeSeconds += getRandomValue(0, 5);
-            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);          
-            lMB.mesg_type = OSS_MQ_TYPE;
-
-            cout << "C: IN MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
-
-            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
-            cout << "C: Result: " << errno << endl;
-        }
-        else
-        {
-            // A full transaction happened
-            mesg_buffer lMB;
-            char lmess[] = "Full\0";
-            memcpy(lMB.mesg_text, lmess, strlen(lmess)+1 );
-            ossItemQueue[nItemToProcess].PCB.totalCPUTime += fullTransactionTimeInNS;
-            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = fullTransactionTimeInNS;
-            lMB.mesg_type = OSS_MQ_TYPE;
-
-            cout << "C: FL MessType: " << lMB.mesg_text << " / " << lMB.mesg_type << endl;
-
-            int n = msgsnd(msgid, &lMB, sizeof(lMB), 0);
-            cout << "C: Result: " << errno << endl;
-        }
-    */
-
     }
-
-
-
 }
 
 
