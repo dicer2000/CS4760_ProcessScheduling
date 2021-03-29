@@ -347,7 +347,6 @@ cout << "******In waitPID==-1" << endl;
 //                cout << strcmp(msg.text, "Shutdown") << " " << msg.text << endl;
 //                sleep (2);
 
-
                 /*
                 // Dispatch it
                 char lmess[] = "Dispatch\0";
