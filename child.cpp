@@ -112,17 +112,10 @@ int main(int argc, char* argv[])
     struct OssItem*ossItemQueue = 
         (struct OssItem*) (shm_addr+sizeof(OssHeader));
 
-
-    // Report that process has started and what type it is
-    string strChildInfo = "PROC ";
-    strChildInfo.append(GetStringFromInt(nItemToProcess));
-    strChildInfo.append("\t");
-    string strChildInfo2 = "New Process Started = type: ";
-    if(childType == CPU) strChildInfo2.append("CPU");
-    else strChildInfo2.append("I/O");
-    cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
-        , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, strChildInfo2);
-
+    // Log a new process started
+    LogItem("PROC ", ossHeader->simClockSeconds,
+        ossHeader->simClockNanoseconds, "Started Successfully", 
+        nPid, nItemToProcess, strLogFile);
 
     // Loop until child process is stopped or it shuts down naturally
     while(!sigQuitFlag)
@@ -138,7 +131,7 @@ int main(int argc, char* argv[])
             willInterrupt = getRandomProbability(0.10f) ? true : false;
         else
             // IO Bound - much more likely to get interrupted
-            willInterrupt = getRandomProbability(0.90f) ? true : false;
+            willInterrupt = getRandomProbability(0.40f) ? true : false;
 
 
         msgrcv(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), nPid, 0); 
@@ -148,15 +141,15 @@ int main(int argc, char* argv[])
         {
             strcpy(msg.text, "Shutdown");
             ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToShutdown;
+            ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToShutdown;
             // Send the message
             msg.type = OSS_MQ_TYPE;
             int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
             
-            string strChildInfo = "PROC ";
-            strChildInfo.append(GetStringFromInt(nItemToProcess));
-            strChildInfo.append("\t");
-            cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
-                , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, "Shutting Down");
+            LogItem("PROC ", ossHeader->simClockSeconds,
+                ossHeader->simClockNanoseconds + nanoSecondsToShutdown,
+                "Shutting down process", 
+                nPid, nItemToProcess, strLogFile);
 
             return EXIT_SUCCESS;
         }
@@ -166,36 +159,42 @@ int main(int argc, char* argv[])
             strcpy(msg.text, "Block");
             ossItemQueue[nItemToProcess].PCB.totalCPUTime += nanoSecondsToInterrupt;
             ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = nanoSecondsToInterrupt;
-            ossItemQueue[nItemToProcess].PCB.blockTimeSeconds += getRandomValue(0, 5);
-            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds += getRandomValue(0, 1000);
+            // Set the block time to the current sim time + block time
+            ossItemQueue[nItemToProcess].PCB.blockTimeSeconds = 
+                ossHeader->simClockSeconds + getRandomValue(0, 5);
+            ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds = 
+                ossHeader->simClockNanoseconds + getRandomValue(0, 1000);
 
             // Log what happened
-            string strChildInfo = "PROC ";
-            strChildInfo.append(GetStringFromInt(nItemToProcess));
-            strChildInfo.append("\t");
-            string strChildInfo2 = "Processed was Blocked after ";
+            string strChildInfo2 = "Processed blocked for ";
             strChildInfo2.append(GetStringFromInt(ossItemQueue[nItemToProcess].PCB.blockTimeSeconds));
             strChildInfo2.append("s:");
             strChildInfo2.append(GetStringFromInt(ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds));
             strChildInfo2.append("ms");
-            cout << formatLogItem(strChildInfo, ossItemQueue[nItemToProcess].PCB.blockTimeSeconds
-                , ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds, strChildInfo2);
-       
+            LogItem("PROC ", ossHeader->simClockSeconds,
+                ossHeader->simClockNanoseconds + nanoSecondsToInterrupt, strChildInfo2, 
+                nPid, nItemToProcess, strLogFile);
+    
         }
         else
         {
+            // PROC Ran for entire time Quantum
             strcpy(msg.text, "Full");
+            // the full time quantum was used, so add 10M ns
             ossItemQueue[nItemToProcess].PCB.totalCPUTime += fullTransactionTimeInNS;
             ossItemQueue[nItemToProcess].PCB.timeUsedLastBurst = fullTransactionTimeInNS;
+
+            // Log it
+            LogItem("PROC ", ossHeader->simClockSeconds,
+                ossHeader->simClockNanoseconds + fullTransactionTimeInNS, "Full quantum use", 
+                nPid, nItemToProcess, strLogFile);
+
         }
 
         // Actually send the message back
         msg.type = OSS_MQ_TYPE;
         int n = msgsnd(msgid, (void *) &msg, sizeof(struct message) - sizeof(long), 0);
         
-//        cout << "C: nval: " << n << endl;
-//        cout << "C: Result: " << errno << endl;
-
     }
 }
 

@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     // Argument processing
     int opt;
     string strLogFile = "logfile";
-    int nNumberOfSeconds = 30;
+    int nNumberOfSeconds = 300;
 
     // Go through each parameter entered and
     // prepare for processing

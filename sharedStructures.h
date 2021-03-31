@@ -49,8 +49,8 @@ struct ProcessControlBlock {        // Process Control Block
 };
 
 struct OssHeader {
-    int systemClockSeconds;     // System Clock - Seconds
-    int systemClockNanoseconds; // System Clock - Nanoseconds
+    int simClockSeconds;     // System Clock - Seconds
+    int simClockNanoseconds; // System Clock - Nanoseconds
     
 };
 
@@ -120,19 +120,6 @@ std::string GetStringFromInt(const int nVal)
     std::string strFinalVal = sDep;                    
     free(sDep);
     return strFinalVal;
-}
-
-std::string formatLogItem(std::string program, int sec, int msec, std::string action)
-{
-    std::string retVal = program;
-//    retVal.append("- ");
-    retVal.append(GetStringFromInt(sec));
-    retVal.append("s:");
-    retVal.append(GetStringFromInt(sec));
-    retVal.append("ms\t");
-    retVal.append(action);
-    retVal.append("\n");
-    return retVal;
 }
 
 // Log file writing helper function
@@ -216,4 +203,33 @@ std::string string_format(const std::string fmt, ...) {
     return str;
 }
 
+void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds, 
+    std::string mainText, int PID, int Index, std::string LogFileName)
+{
+
+    std::cout << string_format("%s%.2d %.10d:%.10d\t%s PID %d",
+            strSystem.c_str(), 
+            Index,
+            timeSeconds, 
+            timeNanoseconds, 
+            mainText.c_str(), PID) << std::endl;
+
+    // Open a file to write
+    std::ofstream logFile (LogFileName, 
+            std::ofstream::out | std::ofstream::app);
+    if (logFile.is_open())
+    {
+        logFile << " " << string_format("%s%.2d:%.2d\t%s PID %d Index %d",
+            strSystem.c_str(),
+            timeSeconds, 
+            timeNanoseconds, 
+            mainText.c_str(), PID, 
+            Index) << std::endl;
+        logFile.close();
+    }
+    else
+    {
+        perror("Unable to write to log file");
+    }
+}
 #endif // SHAREDSTRUCTURES_H
