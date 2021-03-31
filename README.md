@@ -12,7 +12,9 @@ A Git repository was maintained with a public remote found here: https://github.
 
 There were some items I didn't understand about the project's operation.  Based on the feedback I did receive, I made these assumptions:
 
-1. 
+1. All times are processed and shown in Seconds:Nanoseconds
+2. Processing stops after 3 real seconds or no processes remain running or if 100 processes already generated
+3. Logging will happen for anything that is processed regardless of length
 
 
 ## Program Switches
@@ -42,7 +44,7 @@ To run the program, use the oss command.  You can use any of the command line op
 
 ## Problems / Issues
 
-
+The biggest problem experienced (so far) is getting all the timing to work properly.  I've had issues trying to get it correct.  If it's off, it seems to shut everything down prematurely.  So, I've found you have to tune it in to get it to work properly.
 
 ## Work Log
 
@@ -56,5 +58,6 @@ To run the program, use the oss command.  You can use any of the command line op
 - 3/22/2021 - Research; Added Ready and Blocked queue to project
 - 3/28/2021 - Testing
 - 3/29/2021 - Added multiple processes
+- 3/30/2021 - Debugging multiple processes; Trying to setup timing; Tuning timing; Debugging timing; Setting up unique logging
 
 *©2021 Brett W. Huffman*

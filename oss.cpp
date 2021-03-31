@@ -47,6 +47,9 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     // Get the time in seconds for our process to make
     // sure we don't exceed the max amount of processing time
     time_t secondsStart = time(NULL);   // Start time
+    struct tm * curtime = localtime ( &secondsStart );   // Will use for filename uniqueness
+    strLogFile.append("_").append(asctime(curtime));
+    replace(strLogFile.begin(), strLogFile.end(), ' ', '_');
 
     // Bitmap object for keeping track of children
     bitmapper bm(QUEUE_LENGTH);
@@ -130,9 +133,9 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // Create New Processes
         // ********************************************
         // Check bitmap for room to make new processes
-        if(nProcessCount < MAX_PROCESSES 
-            && nNextTargetStartTime < 
-                (ossHeader->simClockNanoseconds + (1000000000 * ossHeader->simClockSeconds)))
+        if(nProcessCount < MAX_PROCESSES && !isKilled)
+//            && nNextTargetStartTime < 
+//                (ossHeader->simClockNanoseconds + (1000000000 * ossHeader->simClockSeconds)))
         {
             // Check if there is room for new processes
             // in the bitmap structure
@@ -141,8 +144,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
             {
                 if(!bm.getBitmapBits(nIndex))
                 {
+                    cout << endl << "####### New Process #######" << endl;
+
                     // Found one.  Create new process
-                    int newPID = forkProcess(ChildProcess, "logFile", nIndex);
+                    int newPID = forkProcess(ChildProcess, strLogFile, nIndex);
 
                     // Setup Shared Memory for processing
                     ossItemQueue[nIndex].pidAssigned = newPID;
@@ -172,8 +177,12 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                         newPID,
                         nIndex, strLogFile);
 
-    // Debug view
-    bm.debugPrintBits();
+                    // Bit view
+                    bm.debugPrintBits();
+                    cout << endl;
+
+                    // Simulate time to add new process
+                    ossHeader->simClockNanoseconds += 500000;
 
                     break;
                 }
@@ -228,9 +237,9 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // No PIDs are in-process
         if (waitPID == -1)
         {
-cout << "******In waitPID==-1" << endl;
+//cout << "******In waitPID==-1" << endl;
             isShutdown = true;
-            break;
+            continue;
         }
 
         // A PID Exited
@@ -250,9 +259,12 @@ cout << "******In waitPID==-1" << endl;
                     bm.setBitmapBits(nIndex, false);
 
                     LogItem("OSS  ", ossHeader->simClockSeconds,
-                        ossHeader->simClockNanoseconds, "Unblocked item", 
+                        ossHeader->simClockNanoseconds, "Process signaled shutdown", 
                         waitPID,
                         nIndex, strLogFile);
+
+                    // Simulate time to process item shutdown
+                    ossHeader->simClockNanoseconds += 500000;
 
                     break;
                 }
@@ -263,35 +275,42 @@ cout << "******In waitPID==-1" << endl;
         } else if (WIFSTOPPED(wstatus) && waitPID > 0) {
             cout << waitPID << " stopped by signal " << WTERMSIG(wstatus) << endl;
         } else if (WIFCONTINUED(wstatus) && waitPID > 0) {
-            continue;
         }
 
         // ********************************************
         // Manage BlockedList - Push aged BlockedList items onto the ReadyQueue
         // ********************************************
-        for(list<int>::iterator blItem = blockedList.begin(); 
-            blItem != blockedList.end(); ++blItem)
+        if(!isKilled)
         {
-            int nItemToCheck = *blItem;
-
-            // Is this item ready to unblock?
-            if(ossHeader->simClockSeconds > ossItemQueue[nItemToCheck].PCB.blockTimeSeconds ||
-                (ossItemQueue[nItemToCheck].PCB.blockTimeSeconds==ossHeader->simClockSeconds
-                && ossHeader->simClockNanoseconds > ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds))
+            for(list<int>::iterator blItem = blockedList.begin(); 
+                blItem != blockedList.end(); ++blItem)
             {
-                // Reset the block time
-                ossItemQueue[nItemToCheck].PCB.blockTimeSeconds = 0;
-                ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds = 0;
-                blockedList.erase(blItem);
-                // Just put one
-                readyQueue.push(nItemToCheck);
+                int nItemToCheck = *blItem;
 
-                LogItem("OSS  ", ossHeader->simClockSeconds,
-                    ossHeader->simClockNanoseconds, "Unblocked item", 
-                    ossItemQueue[nItemToCheck].pidAssigned,
-                    nItemToCheck, strLogFile);
-            
-                break;
+    //            if(ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds%100)
+    //                cout << ossHeader->simClockNanoseconds << " " << nItemToCheck << " ";
+
+                // Is this item ready to unblock?
+                if(ossHeader->simClockSeconds > ossItemQueue[nItemToCheck].PCB.blockTimeSeconds ||
+                    (ossItemQueue[nItemToCheck].PCB.blockTimeSeconds==ossHeader->simClockSeconds
+                    && ossHeader->simClockNanoseconds > ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds))
+                {
+                    // Reset the block time
+                    ossItemQueue[nItemToCheck].PCB.blockTimeSeconds = 0;
+                    ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds = 0;
+                    blockedList.erase(blItem);
+                    // Just put one
+                    readyQueue.push(nItemToCheck);
+
+                    LogItem("OSS  ", ossHeader->simClockSeconds,
+                        ossHeader->simClockNanoseconds, "Unblocked item", 
+                        ossItemQueue[nItemToCheck].pidAssigned,
+                        nItemToCheck, strLogFile);
+                
+                    // Increment System Clock for Un-blocking
+                    ossHeader->simClockNanoseconds += 10000;
+                    break;
+                }
             }
         }
 
@@ -299,7 +318,7 @@ cout << "******In waitPID==-1" << endl;
         // Dispatch processes to run on round-robin basis
         // Gather Stats
         // ********************************************
-        if(!readyQueue.empty())
+        if(!readyQueue.empty() && !isKilled)
         {
             // Get next item from the ready queue
             int nIndexToNextChildProcessing = readyQueue.front();  
@@ -307,12 +326,7 @@ cout << "******In waitPID==-1" << endl;
             // Check for bit set
             if(bm.getBitmapBits(nIndexToNextChildProcessing))
             {
-                // Check ready to process
-                if(!ossItemQueue[nIndexToNextChildProcessing].bReadyToProcess)
-                    continue;   // Not ready, go to next
-                
-
-                cout << "############" << endl;
+                cout << endl << "####### Dispatching #######" << endl;
                 LogItem("OSS  ", ossHeader->simClockSeconds,
                     ossHeader->simClockNanoseconds, "Dispatching process", 
                     ossItemQueue[nIndexToNextChildProcessing].pidAssigned,
@@ -331,11 +345,7 @@ cout << "******In waitPID==-1" << endl;
                 // Update the statistics on what happened while PROC was running
                 ossHeader->simClockNanoseconds += 
                     ossItemQueue[nIndexToNextChildProcessing].PCB.timeUsedLastBurst;
-                if(ossHeader->simClockNanoseconds > 1000000000) // A second has passed
-                {
-                    ossHeader->simClockNanoseconds = ossHeader->simClockNanoseconds - 1000000000;
-                    ossHeader->simClockSeconds++;
-                }
+
 
                 // Child shutting down, so handle
                 if(strcmp(msg.text, "Shutdown")==0)
@@ -351,20 +361,16 @@ cout << "******In waitPID==-1" << endl;
 //                    bm.setBitmapBits(nIndexToNextChildProcessing, false);
 
 //                    isShutdown = true;
-                    continue;
                 }
-
-                if(strcmp(msg.text, "Block")==0)
+                else if(strcmp(msg.text, "Block")==0)
                 {
                     LogItem("OSS  ", ossHeader->simClockSeconds,
                         ossHeader->simClockNanoseconds, "Pushed item to blocked list", 
                         ossItemQueue[nIndexToNextChildProcessing].pidAssigned,
                         nIndexToNextChildProcessing, strLogFile);
-
-//                    cout << "OS ****** - I'm blocking" << endl;
-//                    cout << "OS Pushing: " << nIndexToNextChildProcessing << endl;
+                    // Put on Block List
                     blockedList.push_back(nIndexToNextChildProcessing);
-//                    readyQueue.push(nIndexToNextChildProcessing);
+
                 }
                 else
                 {
@@ -372,11 +378,18 @@ cout << "******In waitPID==-1" << endl;
                     readyQueue.push(nIndexToNextChildProcessing);
                 }
             }
-            // Not found, didn't schedule anything to run...
         }
-        
-    } // End of main loop
+            // Per the directions advance the timer by 1.xx seconds
+            ossHeader->simClockSeconds++;
+            ossHeader->simClockNanoseconds += getRandomValue(0, 1000);
 
+            // Manage the Timers
+            if(ossHeader->simClockNanoseconds > 1000000000) // A second has passed
+            {
+                ossHeader->simClockNanoseconds = ossHeader->simClockNanoseconds - 1000000000;
+                ossHeader->simClockSeconds++;
+            }        
+    } // End of main loop
 
 
     // Breakdown shared memory
@@ -391,7 +404,7 @@ cout << "******In waitPID==-1" << endl;
     if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
         perror("OSS: Error deallocating shared memory ");
     }
-    cout << "OSS: Shared memory De-allocated" << endl << endl;
+    cout << "OSS: Shared memory De-allocated" << endl;
 
     // Destroy the Message Queue
     msgctl(msgid,IPC_RMID,NULL);

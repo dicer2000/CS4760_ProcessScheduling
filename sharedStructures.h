@@ -207,7 +207,7 @@ void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds,
     std::string mainText, int PID, int Index, std::string LogFileName)
 {
 
-    std::cout << string_format("%s%.2d %.10d:%.10d\t%s PID %d",
+    std::cout << string_format("%s%.2d %.6d:%.10d\t%s PID %d",
             strSystem.c_str(), 
             Index,
             timeSeconds, 
@@ -219,12 +219,12 @@ void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds,
             std::ofstream::out | std::ofstream::app);
     if (logFile.is_open())
     {
-        logFile << " " << string_format("%s%.2d:%.2d\t%s PID %d Index %d",
-            strSystem.c_str(),
+        logFile << string_format("%s%.2d %.6d:%.10d\t%s PID %d",
+            strSystem.c_str(), 
+            Index,
             timeSeconds, 
             timeNanoseconds, 
-            mainText.c_str(), PID, 
-            Index) << std::endl;
+            mainText.c_str(), PID) << std::endl;
         logFile.close();
     }
     else
