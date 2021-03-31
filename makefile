@@ -32,4 +32,4 @@ clean:
 	rm -f $(appname1)
 	rm -f $(objects2)
 	rm -f $(appname2)
-	rm -f logfile
+	rm -f logfile*

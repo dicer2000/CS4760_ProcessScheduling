@@ -14,6 +14,7 @@
 #include <string.h>
 #include <queue>
 #include <list>
+#include <algorithm>
 #include <unistd.h>
 #include "sharedStructures.h"
 #include "productSemaphores.h"
