@@ -11,6 +11,7 @@
 #include <iostream>
 #include "bitmapper.h"
 #include <string.h>
+#include <fstream>
 
 using namespace std;
 
