@@ -215,7 +215,7 @@ void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds,
             mainText.c_str(), PID) << std::endl;
 
     // Open a file to write
-    std::ofstream logFile (LogFileName, 
+    std::ofstream logFile (LogFileName.c_str(), 
             std::ofstream::out | std::ofstream::app);
     if (logFile.is_open())
     {
