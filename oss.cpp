@@ -68,6 +68,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     bool isKilled = false;
     bool isShutdown = false;
     int nProcessCount = 0;   // 100 MAX
+    int nCPUProcessCount = 0;
+    int nIOProcessCount = 0;
 
     // Create a Semaphore to coordinate control
 //    productSemaphores s(KEY_MUTEX, true, 1);
@@ -156,8 +158,11 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                     ossItemQueue[nIndex].PCB.totalCPUTime = 0;
                     ossItemQueue[nIndex].PCB.totalSystemTime = 0;
                     ossItemQueue[nIndex].PCB.timeUsedLastBurst = 0;
-                    ossItemQueue[nIndex].PCB.localSimulatedPID = 0;
-                    ossItemQueue[nIndex].PCB.processPriority = 0;
+
+                    // Decide if it's a CPU or IO bound process
+                    // This probability (<.50 will generate more CPU)
+                    ossItemQueue[nIndex].PCB.processType = 
+                        getRandomProbability(percentageCPU) ? IO : CPU;
 
                     // Set bit in bitmap
                     bm.setBitmapBits(nIndex, true);
@@ -167,6 +172,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
                     // Increment how many have been made
                     nProcessCount++;
+
+
 
                     // Increment out next target to make a new process
                     nNextTargetStartTime+=1000000000;
@@ -178,9 +185,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                         newPID,
                         nIndex, strLogFile);
 
-                    // Bit view
-                    bm.debugPrintBits();
-                    cout << endl;
+                    // Log Process Status
+                    LogItem(bm.getBitView(), strLogFile);
 
                     // Simulate time to add new process
                     ossHeader->simClockNanoseconds += 500000;
@@ -347,7 +353,6 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                 ossHeader->simClockNanoseconds += 
                     ossItemQueue[nIndexToNextChildProcessing].PCB.timeUsedLastBurst;
 
-
                 // Child shutting down, so handle
                 if(strcmp(msg.text, "Shutdown")==0)
                 {
@@ -395,8 +400,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
     // Breakdown shared memory
     // Dedetach shared memory segment from process's address space
-    cout << endl;
-    cout << "OSS: De-allocating shared memory" << endl;
+
+    LogItem("________________________________\n", strLogFile);
+    LogItem("OSS: De-allocating shared memory", strLogFile);
+
     if (shmdt(shm_addr) == -1) {
         perror("OSS: Error detaching shared memory");
     }
@@ -405,12 +412,18 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
         perror("OSS: Error deallocating shared memory ");
     }
-    cout << "OSS: Shared memory De-allocated" << endl;
+    LogItem("OSS: Shared memory De-allocated", strLogFile);
 
     // Destroy the Message Queue
     msgctl(msgid,IPC_RMID,NULL);
 
-    cout << "OSS: Message Queue De-allocated" << endl << endl;
+    LogItem("OSS: Message Queue De-allocated", strLogFile);
+
+    // Report the statistics
+    LogItem("________________________________\n", strLogFile);
+    LogItem("OSS Statistics", strLogFile);
+    LogItem("\t\t\tI/O\t\tCPU", strLogFile);
+    LogItem("Total\t\t\t22\t\t12", strLogFile);
 
     // Success!
     return EXIT_SUCCESS;

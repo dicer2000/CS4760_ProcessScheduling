@@ -29,7 +29,7 @@ class bitmapper
     bool getBitmapBits(int);
     void toggleBits(int);
     void debugPrintBits();
-
+    std::string getBitView();
 };
 
 

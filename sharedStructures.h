@@ -34,18 +34,22 @@
 #include <stdarg.h>  // For va_start, etc.
 
 //***************************************************
+// Enum for I/O vs CPU Bound Process
+//***************************************************
+enum ChildType { IO, CPU };
+
+//***************************************************
 // Structures
 //***************************************************
 struct ProcessControlBlock {        // Process Control Block
     uint totalCPUTime;
     uint totalSystemTime;
     uint timeUsedLastBurst;
-    uint localSimulatedPID;
-    uint processPriority;
     uint blockTimeSeconds;
     uint blockTimeNanoseconds;
     uint blockedUntilSeconds;
     uint blockedUntilNanoseconds;
+    ChildType processType;
 };
 
 struct OssHeader {
@@ -76,6 +80,7 @@ struct message {
 } msg;
 
 const long OSS_MQ_TYPE = 1;
+
 
 //***************************************************
 // Important Program Constants
@@ -201,6 +206,25 @@ std::string string_format(const std::string fmt, ...) {
             size *= 2;      // Guess at a larger size (OS specific)
     }
     return str;
+}
+
+void LogItem(std::string input, std::string LogFileName)
+{
+
+    std::cout << input.c_str() << std::endl;
+
+    // Open a file to write
+    std::ofstream logFile (LogFileName.c_str(), 
+            std::ofstream::out | std::ofstream::app);
+    if (logFile.is_open())
+    {
+        logFile << input.c_str() << std::endl;
+        logFile.close();
+    }
+    else
+    {
+        perror("Unable to write to log file");
+    }
 }
 
 void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds, 

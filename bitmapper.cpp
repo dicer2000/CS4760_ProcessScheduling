@@ -106,3 +106,17 @@ void bitmapper::debugPrintBits()
         cout << getBitmapBits(i);
     cout << endl;
 }
+
+std::string bitmapper::getBitView()
+{
+    // Print a header
+    std::string strRet =  "0         1         2         3         4         5         6         7         ";
+    strRet.append("\n");
+    strRet.append("01234567890123456789012345678901234567890123456789012345678901234567890123456789");
+    strRet.append("\n");
+    // Print the array as bytes
+    for (int i = 0; i < _size*8; i++)
+        strRet.append(getBitmapBits(i) ? "*" : " ");
+    strRet.append("\n");
+    return strRet;
+}

@@ -26,9 +26,6 @@ void sigQuitHandler(int sig){ // can be called asynchronously
   sigQuitFlag = 1; // set flag
 }
 
-// Enum for I/O vs CPU Bound Process
-enum ChildType { IO, CPU };
-
 using namespace std;
 
 // Main - expecting arguments
@@ -36,8 +33,6 @@ int main(int argc, char* argv[])
 {
     // This main area will only handle the processing
     // of the incoming arguments.
-
-//    string strLog =  "Child app by Brett Huffman for CMP SCI 4760";
 
     // Check incoming arguements
     if(argc < 2)
@@ -62,9 +57,6 @@ int main(int argc, char* argv[])
     // Seed the randomizer with the PID
     srand(time(0) ^ nPid);
 
-    // Determine processing type and cast to a ChildType
-    // This probability (<.50 will generate more CPU)
-    const ChildType childType = getRandomProbability(percentageCPU) ? IO : CPU;
     //cout << "********************" << childType << endl;
 
     // Open the connection with the Message Queue
@@ -126,7 +118,7 @@ int main(int argc, char* argv[])
         bool willShutdown = getRandomProbability(0.05f);
         int nanoSecondsToShutdown = getRandomValue(200, 450);
         int nanoSecondsToInterrupt = getRandomValue(200, 450);   // Only used if interrupt happens
-        if(childType == CPU)
+        if(ossItemQueue[nItemToProcess].PCB.processType == CPU)
             // CPU Bound process - less likely to get interrupted
             willInterrupt = getRandomProbability(0.10f) ? true : false;
         else
