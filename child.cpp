@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 
         // Set probabilities for this round
         bool willInterrupt = false;
-        bool willShutdown = getRandomProbability(0.05f);
+        bool willShutdown = getRandomProbability(0.15f);
         int nanoSecondsToShutdown = getRandomValue(200, 450);
         int nanoSecondsToInterrupt = getRandomValue(200, 450);   // Only used if interrupt happens
         if(ossItemQueue[nItemToProcess].PCB.processType == CPU)
@@ -156,7 +156,8 @@ int main(int argc, char* argv[])
                 ossHeader->simClockSeconds + getRandomValue(0, 5);
             ossItemQueue[nItemToProcess].PCB.blockTimeNanoseconds = 
                 ossHeader->simClockNanoseconds + getRandomValue(0, 1000);
-
+            ossItemQueue[nItemToProcess].PCB.blockTotalTime += 
+                ossItemQueue[nItemToProcess].PCB.blockTimeSeconds;
             // Log what happened
             string strChildInfo2 = "Process blocked until ";
             strChildInfo2.append(GetStringFromInt(ossItemQueue[nItemToProcess].PCB.blockTimeSeconds));

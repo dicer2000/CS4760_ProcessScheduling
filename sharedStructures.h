@@ -3,7 +3,7 @@
  * contains all the structures shared between
  * the oss & child processes.  It
  * contains library calls, the main structure
- * containing data, and semephores.
+ * containing data, and shared messages.
  * 
  * Brett Huffman
  * CMP SCI 4760 - Project 4
@@ -45,10 +45,12 @@ struct ProcessControlBlock {        // Process Control Block
     uint totalCPUTime;
     uint totalSystemTime;
     uint timeUsedLastBurst;
+    uint blockTotalTime;
     uint blockTimeSeconds;
     uint blockTimeNanoseconds;
     uint blockedUntilSeconds;
     uint blockedUntilNanoseconds;
+    uint waitStartTime;
     ChildType processType;
 };
 
@@ -97,6 +99,7 @@ const float percentageCPU = 0.9f;   // Higher numbers give more CPU Processes
 /***************************************************
  * Helper Functions
  * *************************************************/
+
 // For time formatting used throughout both programs
 std::string GetTimeFormatted(const char* prePendString)
 {
@@ -127,6 +130,17 @@ std::string GetStringFromInt(const int nVal)
     return strFinalVal;
 }
 
+// Returns a string from an float to 4 decimal places
+std::string GetStringFromFloat(const float nVal)
+{
+    int length = snprintf( NULL, 0, "%0.4f", nVal);
+    char* sDep = (char*)malloc( length + 1 );
+    snprintf( sDep, length + 1, "%0.4f", nVal);
+    std::string strFinalVal = sDep;                    
+    free(sDep);
+    return strFinalVal;
+}
+
 // Log file writing helper function
 bool WriteLogFile(std::string& logString, std::string LogFile)
 {
@@ -147,6 +161,7 @@ bool WriteLogFile(std::string& logString, std::string LogFile)
     }
 }
 
+// Set a Bitmap's Byte values
 void setBitmapByte(unsigned char* bitmap, int addr, bool value)
 {
     if(value)
@@ -161,6 +176,7 @@ void setBitmapByte(unsigned char* bitmap, int addr, bool value)
     }
 }
 
+// Get a Bitmap's Btye values
 bool getBitmapByte(unsigned char* bitmap, int addr)
 {
     // returns true or false based on whether value
@@ -168,6 +184,7 @@ bool getBitmapByte(unsigned char* bitmap, int addr)
     return (bitmap[addr/8] & (1 << (7 - (addr%8))));
 }
 
+// Toggling a Bitmap's Byte values
 void toggleByte(unsigned char* bitmap, int addr)
 {
     // Toggle the bit at this point in the bitmap
@@ -187,7 +204,9 @@ bool getRandomProbability(float ProbabilityOfTrue)
   return rand()%100 < (ProbabilityOfTrue * 100);
 }
 
-std::string string_format(const std::string fmt, ...) {
+// Formats a string with variable number of params
+std::string string_format(const std::string fmt, ...)
+{
     int size = ((int)fmt.size()) * 2 + 50;   // Use a rubric appropriate for your code
     std::string str;
     va_list ap;
@@ -208,6 +227,7 @@ std::string string_format(const std::string fmt, ...) {
     return str;
 }
 
+// Writes a log file
 void LogItem(std::string input, std::string LogFileName)
 {
 
@@ -227,6 +247,8 @@ void LogItem(std::string input, std::string LogFileName)
     }
 }
 
+// Writes a special kind of log that logs exactly the same thing
+// to both a log in a specified file and to the screen
 void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds, 
     std::string mainText, int PID, int Index, std::string LogFileName)
 {
@@ -256,4 +278,5 @@ void LogItem(std::string strSystem, int timeSeconds, int timeNanoseconds,
         perror("Unable to write to log file");
     }
 }
+
 #endif // SHAREDSTRUCTURES_H

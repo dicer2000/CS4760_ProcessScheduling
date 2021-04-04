@@ -15,6 +15,7 @@ There were some items I didn't understand about the project's operation.  Based 
 2. Processing stops after 3 real seconds or no processes remain running or if 100 processes already generated
 3. Logging will happen for anything that is processed regardless of length
 4. I've decided to use Shared Message Queue without IPC_NOWAIT.  That means that the sending process blocks until the receiver sends a message back to you.  I felt that best simulated real-life processing and made my code simpler.
+5. I assume the following should stats be broken out into I/O or CPU: Avg Sys Time, Avg CPU Util, and Avg Time Blocked.  Avg Wait Time and CPU Idle time are to be both reported by the system totals.  I believe this makes the most sense with those statistics.
 
 ## Program Switches
 The program can be invoked as:
@@ -45,7 +46,9 @@ To run the program, use the oss command.  You can use any of the command line op
 
 The biggest problem experienced (so far) is getting all the timing to work properly.  I've had issues trying to get it correct.  If it's off, it seems to shut everything down prematurely.  So, I've found you have to tune it in to get it to work properly.
 
-I also had problems getting the calls to shared messgaes correct.  At first, I had the size parameter sending the entire message struct size.  That had random results.  I had to re-read the man page many times to realize it was simply the size of the text message (not the entire struct).  Once I got that it started sending messages well.
+I also had problems getting the calls to shared messages correct.  At first, I had the size parameter sending the entire message struct size.  That had random results.  I had to re-read the man page many times to realize it was simply the size of the text message (not the entire struct).  Once I got that it started sending messages well.
+
+In finishing the project, another large problem has been in collecting all the statistics.  In many cases, they were a bear to collect and accurately calculate.  For instance, the problem of determining how to properly add nanoseconds to my system averages.  In the end, I think I got the correct values.
 
 ## Work Log
 
@@ -61,5 +64,8 @@ I also had problems getting the calls to shared messgaes correct.  At first, I h
 - 3/29/2021 - Added multiple processes
 - 3/30/2021 - Debugging multiple processes; Trying to setup timing; Tuning timing; Debugging timing; Setting up unique logging
 - 4/1/2021 - Started over (April Fools). Actually I'm just getting statistics to working correctly; debugging
+- 4/2/2021 - Getting stats to work
+- 4/3/2021 - Debugging stats; Fixing major error; Debugging; Refactoring sharedStructures; Publishing to turn-in server
+
 
 *©2021 Brett W. Huffman*

@@ -48,9 +48,15 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     // Get the time in seconds for our process to make
     // sure we don't exceed the max amount of processing time
     time_t secondsStart = time(NULL);   // Start time
-    struct tm * curtime = localtime ( &secondsStart );   // Will use for filename uniqueness
+    struct tm * curtime = localtime( &secondsStart );   // Will use for filename uniqueness
     strLogFile.append("_").append(asctime(curtime));
     replace(strLogFile.begin(), strLogFile.end(), ' ', '_');
+
+    // Print out the header
+    LogItem("------------------------------------------------\n", strLogFile);
+    LogItem("OSS by Brett Huffman - CMP SCI 4760 - Project 4\n", strLogFile);
+    LogItem("------------------------------------------------\n", strLogFile);
+
 
     // Bitmap object for keeping track of children
     bitmapper bm(QUEUE_LENGTH);
@@ -67,9 +73,20 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     signal(SIGINT, sigintHandler);
     bool isKilled = false;
     bool isShutdown = false;
+
+    // Statistics
     int nProcessCount = 0;   // 100 MAX
     int nCPUProcessCount = 0;
     int nIOProcessCount = 0;
+    uint nCPUTimeInSystem = 0;
+    uint nIOTimeInSystem = 0;
+    uint nCPU_CPUUtil = 0;
+    uint nIO_CPUUtil = 0;
+    uint nCPU_TimeWaitedBlocked = 0;
+    uint nIO_TimeWaitedBlocked = 0;
+    uint nTotalTime = 0;
+    uint nCPU_IdleTime = 0;
+    uint nTotalWaitTime = 0;
 
     // Create a Semaphore to coordinate control
 //    productSemaphores s(KEY_MUTEX, true, 1);
@@ -136,9 +153,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // Create New Processes
         // ********************************************
         // Check bitmap for room to make new processes
-        if(nProcessCount < MAX_PROCESSES && !isKilled)
-//            && nNextTargetStartTime < 
-//                (ossHeader->simClockNanoseconds + (1000000000 * ossHeader->simClockSeconds)))
+        if(nProcessCount < MAX_PROCESSES && !isKilled &&
+            time(NULL) - secondsStart < 3)
         {
             // Check if there is room for new processes
             // in the bitmap structure
@@ -158,11 +174,22 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                     ossItemQueue[nIndex].PCB.totalCPUTime = 0;
                     ossItemQueue[nIndex].PCB.totalSystemTime = 0;
                     ossItemQueue[nIndex].PCB.timeUsedLastBurst = 0;
+                    ossItemQueue[nIndex].PCB.blockTotalTime = 0;
+                    ossItemQueue[nIndex].PCB.waitStartTime = 
+                        ossHeader->simClockNanoseconds; // For Wait Time Calc
 
                     // Decide if it's a CPU or IO bound process
                     // This probability (<.50 will generate more CPU)
-                    ossItemQueue[nIndex].PCB.processType = 
-                        getRandomProbability(percentageCPU) ? IO : CPU;
+                    if(getRandomProbability(percentageCPU))
+                    {
+                        ossItemQueue[nIndex].PCB.processType = IO;
+                        nIOProcessCount++;
+                    }
+                    else
+                    {
+                        ossItemQueue[nIndex].PCB.processType = CPU;
+                        nCPUProcessCount++;
+                    }
 
                     // Set bit in bitmap
                     bm.setBitmapBits(nIndex, true);
@@ -244,7 +271,6 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // No PIDs are in-process
         if (waitPID == -1)
         {
-//cout << "******In waitPID==-1" << endl;
             isShutdown = true;
             continue;
         }
@@ -260,8 +286,19 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                 if(ossItemQueue[nIndex].pidAssigned == waitPID)
                 {
                     // Update the overall statistics
-                    ossItemQueue[nIndex].PCB.totalCPUTime = 0;
+                    if(ossItemQueue[nIndex].PCB.processType==CPU)
+                    {
+                        nCPU_CPUUtil=ossItemQueue[nIndex].PCB.totalCPUTime/100000;
+                        nIO_TimeWaitedBlocked+=ossItemQueue[nIndex].PCB.blockTotalTime;
+                    }
+                    else
+                    {
+                        nIO_CPUUtil=ossItemQueue[nIndex].PCB.totalCPUTime/100000;
+                        nCPU_TimeWaitedBlocked=ossItemQueue[nIndex].PCB.blockTotalTime;
+                    }
+
                     // Reset to start over
+                    ossItemQueue[nIndex].PCB.totalCPUTime = 0;
                     ossItemQueue[nIndex].pidAssigned = 0;
                     bm.setBitmapBits(nIndex, false);
 
@@ -294,9 +331,6 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
             {
                 int nItemToCheck = *blItem;
 
-    //            if(ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds%100)
-    //                cout << ossHeader->simClockNanoseconds << " " << nItemToCheck << " ";
-
                 // Is this item ready to unblock?
                 if(ossHeader->simClockSeconds > ossItemQueue[nItemToCheck].PCB.blockTimeSeconds ||
                     (ossItemQueue[nItemToCheck].PCB.blockTimeSeconds==ossHeader->simClockSeconds
@@ -306,6 +340,10 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                     ossItemQueue[nItemToCheck].PCB.blockTimeSeconds = 0;
                     ossItemQueue[nItemToCheck].PCB.blockTimeNanoseconds = 0;
                     blockedList.erase(blItem);
+
+                    ossItemQueue[nItemToCheck].PCB.waitStartTime = 
+                        ossHeader->simClockNanoseconds; // For Wait Time C
+
                     // Just put one
                     readyQueue.push(nItemToCheck);
 
@@ -325,7 +363,13 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
         // Dispatch processes to run on round-robin basis
         // Gather Stats
         // ********************************************
-        if(!readyQueue.empty() && !isKilled)
+        // For figuring out Idle Time
+        if(readyQueue.empty())
+        {
+            nCPU_IdleTime += 1;
+        }
+        // Now, really process the Dispatches
+        else if(!isKilled)
         {
             // Get next item from the ready queue
             int nIndexToNextChildProcessing = readyQueue.front();  
@@ -338,6 +382,9 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                     ossHeader->simClockNanoseconds, "Dispatching process", 
                     ossItemQueue[nIndexToNextChildProcessing].pidAssigned,
                     nIndexToNextChildProcessing, strLogFile);
+
+                nTotalWaitTime = ossHeader->simClockNanoseconds -
+                    ossItemQueue[nIndexToNextChildProcessing].PCB.waitStartTime;
 
                 // Dispatch it
                 strcpy(msg.text, "Dispatch");
@@ -356,17 +403,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                 // Child shutting down, so handle
                 if(strcmp(msg.text, "Shutdown")==0)
                 {
-                   
-                    // Collect stats, but let returning PIDs shutthemselves down
-
-
-                    // Update the overall statistics
-//                    ossItemQueue[nIndexToNextChildProcessing].PCB.totalCPUTime = 0;
-                    // Reset to start over
-//                    ossItemQueue[nIndexToNextChildProcessing].pidAssigned = 0;
-//                    bm.setBitmapBits(nIndexToNextChildProcessing, false);
-
-//                    isShutdown = true;
+                    // Turns out we don't do much.  This is handled by the PID closing
                 }
                 else if(strcmp(msg.text, "Block")==0)
                 {
@@ -380,6 +417,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
                 }
                 else
                 {
+                    ossItemQueue[nIndexToNextChildProcessing].PCB.waitStartTime = 
+                        ossHeader->simClockNanoseconds; // For Wait Time C
                     // Full Quantum Run, just requeue and keep going
                     readyQueue.push(nIndexToNextChildProcessing);
                 }
@@ -397,6 +436,8 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
             }        
     } // End of main loop
 
+    // Get the stats from the shared memory before we break it down
+    nTotalTime = ossHeader->simClockSeconds;
 
     // Breakdown shared memory
     // Dedetach shared memory segment from process's address space
@@ -419,12 +460,28 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
 
     LogItem("OSS: Message Queue De-allocated", strLogFile);
 
-    // Report the statistics
-    LogItem("________________________________\n", strLogFile);
-    LogItem("OSS Statistics", strLogFile);
-    LogItem("\t\t\tI/O\t\tCPU", strLogFile);
-    LogItem("Total\t\t\t22\t\t12", strLogFile);
+    if(nCPUProcessCount > 0 && nIOProcessCount > 0)
+    {
+        // Calc & Report the statistics
+        LogItem("________________________________\n", strLogFile);
+        LogItem("OSS Statistics", strLogFile);
+        LogItem("\t\t\tI/O\t\tCPU", strLogFile);
+        LogItem("Total\t\t\t" + GetStringFromInt(nIOProcessCount) + "\t\t" + GetStringFromInt(nCPUProcessCount), strLogFile);
+        string strIOStat = GetStringFromFloat((float)nTotalTime/(float)nIOProcessCount);
+        string strCPUStat = GetStringFromFloat((float)nTotalTime/(float)nCPUProcessCount);
+        LogItem("Avg Sys Time\t\t" + strIOStat + "\t\t" + strCPUStat, strLogFile);
+        strIOStat = GetStringFromFloat((float)nIO_CPUUtil/(float)nIOProcessCount);
+        strCPUStat = GetStringFromFloat((float)nCPU_CPUUtil/(float)nCPUProcessCount);
+        LogItem("Avg CPU Util\t\t" + strIOStat + "\t\t" + strCPUStat, strLogFile);
+        strIOStat = GetStringFromFloat((float)nIO_TimeWaitedBlocked/(float)nIOProcessCount);
+        strCPUStat = GetStringFromFloat((float)nCPU_TimeWaitedBlocked/(float)nCPUProcessCount);
+        LogItem("Avg Time Blocked\t" + strIOStat + "\t\t" + strCPUStat, strLogFile);
 
+        strCPUStat = GetStringFromFloat((float)nTotalWaitTime/(float)(nIOProcessCount+nCPUProcessCount));
+        LogItem("Avg Wait Time:\t" + strIOStat + "ns", strLogFile);
+        strCPUStat = GetStringFromFloat((float)nCPU_IdleTime);
+        LogItem("CPU Idle Time:\t" + strCPUStat + "\n", strLogFile);
+    }
     // Success!
     return EXIT_SUCCESS;
 }
