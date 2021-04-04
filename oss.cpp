@@ -51,6 +51,7 @@ int ossProcess(string strLogFile, int timeInSecondsToTerminate)
     struct tm * curtime = localtime( &secondsStart );   // Will use for filename uniqueness
     strLogFile.append("_").append(asctime(curtime));
     replace(strLogFile.begin(), strLogFile.end(), ' ', '_');
+    replace(strLogFile.begin(), strLogFile.end(), '?', '_');
 
     // Print out the header
     LogItem("------------------------------------------------\n", strLogFile);
